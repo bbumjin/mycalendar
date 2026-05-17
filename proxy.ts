@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/setup',
   '/api/setup/health',
   '/api/ics', // /api/ics/[token] is publicly accessible by anyone with the token
+  '/api/widget', // /api/widget/* accept ?token=<ics_token> for Android widget access
 ];
 
 export async function proxy(req: NextRequest) {

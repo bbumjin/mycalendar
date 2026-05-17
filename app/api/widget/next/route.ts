@@ -1,19 +1,23 @@
-import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/supabase/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { resolveWidgetUser } from '@/lib/widget-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  const auth = await resolveWidgetUser(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const admin = getSupabaseAdminClient();
   const nowIso = new Date().toISOString();
-  const { data } = await supabase
+  const { data } = await admin
     .from('events_with_reminders')
-    .select('id, title, start_time, end_time, location_text, reminders')
-    .eq('user_id', user.id)
+    .select('id, title, start_time, end_time, location_text, source_provider, reminders')
+    .eq('user_id', auth.userId)
     .gte('start_time', nowIso)
     .order('start_time', { ascending: true })
     .limit(1);
+
   const event = data?.[0] ?? null;
   let recommended_reminder_at: string | null = null;
   if (event) {
@@ -24,5 +28,7 @@ export async function GET() {
       recommended_reminder_at = new Date(new Date(event.start_time).getTime() - maxBefore * 60_000).toISOString();
     }
   }
-  return NextResponse.json({ event, recommended_reminder_at });
+  return NextResponse.json({ event, recommended_reminder_at }, {
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }

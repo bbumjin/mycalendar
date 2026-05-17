@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#F7F7F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="fg">#111111</color>
+    <color name="muted">#6B6B6B</color>
+    <color name="accent">#111111</color>
+    <color name="border">#E7E7E3</color>
+    <color name="google">#4285F4</color>
+    <color name="microsoft">#0078D4</color>
+</resources>

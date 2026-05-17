@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireUser } from '@/lib/supabase/server';
+import { resolveWidgetUser } from '@/lib/widget-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { DEFAULT_TZ } from '@/lib/time';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -7,9 +8,10 @@ import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const auth = await resolveWidgetUser(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const admin = getSupabaseAdminClient();
   const tz = DEFAULT_TZ;
   const monthParam = req.nextUrl.searchParams.get('month');
   const anchor = monthParam
@@ -18,10 +20,10 @@ export async function GET(req: NextRequest) {
   const from = startOfMonth(anchor);
   const to = endOfMonth(anchor);
 
-  const { data } = await supabase
+  const { data } = await admin
     .from('events')
     .select('start_time')
-    .eq('user_id', user.id)
+    .eq('user_id', auth.userId)
     .gte('start_time', from.toISOString())
     .lte('start_time', to.toISOString());
 
@@ -33,5 +35,5 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     month: formatInTimeZone(anchor, tz, 'yyyy-MM'),
     days_with_events: Array.from(days).sort(),
-  });
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

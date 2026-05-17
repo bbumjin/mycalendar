@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI 캘린더 위젯</string>
+    <string name="widget_today_label">AI 캘린더 — 오늘</string>
+    <string name="widget_next_label">AI 캘린더 — 다음 일정</string>
+    <string name="widget_month_label">AI 캘린더 — 월간</string>
+    <string name="widget_today_desc">오늘 남은 일정을 한눈에 봅니다.</string>
+    <string name="widget_next_desc">다음 일정과 권장 출발 시각.</string>
+    <string name="widget_month_desc">이번 달 일정이 있는 날에 점을 표시.</string>
+</resources>
