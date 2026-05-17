@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireUser } from '@/lib/supabase/server';
 import { createGoogleEvent, GoogleSyncError } from '@/lib/google-calendar';
+import { createMicrosoftEvent, MicrosoftSyncError } from '@/lib/microsoft-calendar';
 
 export const runtime = 'nodejs';
 
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     .eq('user_id', user.id)
     .single();
 
-  // Best-effort sync to Google Calendar if a calendar account is attached.
+  // Best-effort sync to the connected provider if one is attached.
   let syncWarning: string | null = null;
   if (calendarAccountId && full) {
     const { data: account } = await supabase
@@ -113,26 +114,37 @@ export async function POST(req: NextRequest) {
       .eq('id', calendarAccountId)
       .eq('user_id', user.id)
       .single();
-    if (account?.provider === 'google') {
+    if (account) {
+      const payload = {
+        title: full.title,
+        start_time: full.start_time,
+        end_time: full.end_time,
+        location_text: full.location_text,
+        notes: full.notes,
+        attendees: full.attendees ?? [],
+        reminders: full.reminders ?? [],
+      };
       try {
-        const { externalId } = await createGoogleEvent(supabase, account, {
-          title: full.title,
-          start_time: full.start_time,
-          end_time: full.end_time,
-          location_text: full.location_text,
-          notes: full.notes,
-          attendees: full.attendees ?? [],
-          reminders: full.reminders ?? [],
-        });
-        await supabase
-          .from('events')
-          .update({ external_event_id: externalId, status: 'synced' })
-          .eq('id', inserted.id);
-        full.external_event_id = externalId;
-        full.status = 'synced';
+        let externalId: string | null = null;
+        if (account.provider === 'google') {
+          externalId = (await createGoogleEvent(supabase, account, payload)).externalId;
+        } else if (account.provider === 'microsoft') {
+          externalId = (await createMicrosoftEvent(supabase, account, payload)).externalId;
+        }
+        if (externalId) {
+          await supabase
+            .from('events')
+            .update({ external_event_id: externalId, status: 'synced' })
+            .eq('id', inserted.id);
+          full.external_event_id = externalId;
+          full.status = 'synced';
+        }
       } catch (e: unknown) {
         await supabase.from('events').update({ status: 'failed' }).eq('id', inserted.id);
-        syncWarning = e instanceof GoogleSyncError ? e.message : 'Google sync failed';
+        syncWarning =
+          e instanceof GoogleSyncError || e instanceof MicrosoftSyncError
+            ? e.message
+            : '캘린더 동기화에 실패했습니다.';
       }
     }
   }

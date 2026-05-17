@@ -30,11 +30,13 @@ export type EventRow = {
   notes: string | null;
   source_text: string | null;
   source_type: 'text' | 'voice' | 'manual';
+  source_provider: 'google' | 'microsoft' | null;
   ai_confidence: number | null;
   needs_confirmation: boolean;
   status: 'draft' | 'saved' | 'synced' | 'failed';
   calendar_account_id: string | null;
   external_event_id: string | null;
+  last_synced_at: string | null;
   created_at: string;
   updated_at: string;
   reminders?: Reminder[];

@@ -29,8 +29,10 @@ export class GoogleSyncError extends Error {
   }
 }
 
-// Returns a non-expired access token; refreshes it if necessary and persists
-// the new token + expiry back to calendar_accounts.
+function isEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
 export async function withFreshGoogleToken(
   supabase: SupabaseClient,
   account: AccountRow
@@ -70,18 +72,32 @@ export async function withFreshGoogleToken(
 }
 
 function eventBody(e: EventPayload) {
+  // Attendees: if the string looks like an email, send as { email }, otherwise as { displayName }.
+  // Google sends invitation emails to entries that have an email field (when sendUpdates=all).
+  const attendees = e.attendees
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0)
+    .map((a) =>
+      isEmail(a)
+        ? { email: a }
+        : { displayName: a, email: `${a.replace(/\s+/g, '_').toLowerCase()}@noreply.invalid`, responseStatus: 'needsAction' as const }
+    );
   return {
     summary: e.title,
     location: e.location_text || undefined,
     description: e.notes || undefined,
     start: { dateTime: e.start_time },
     end: { dateTime: e.end_time },
-    attendees: e.attendees.length > 0 ? e.attendees.map((a) => ({ displayName: a })) : undefined,
+    attendees: attendees.length > 0 ? attendees : undefined,
     reminders: {
       useDefault: false,
       overrides: e.reminders.map((r) => ({ method: 'popup', minutes: r.minutes_before })),
     },
   };
+}
+
+function hasRealAttendeeEmails(e: EventPayload): boolean {
+  return e.attendees.some((a) => isEmail(a));
 }
 
 export async function createGoogleEvent(
@@ -91,11 +107,15 @@ export async function createGoogleEvent(
 ): Promise<{ externalId: string }> {
   const token = await withFreshGoogleToken(supabase, account);
   const calendarId = account.selected_calendar_id || 'primary';
-  const res = await fetch(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(eventBody(event)),
-  });
+  const sendUpdates = hasRealAttendeeEmails(event) ? '?sendUpdates=all' : '';
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events${sendUpdates}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(eventBody(event)),
+    }
+  );
   const body = await res.json();
   if (!res.ok || !body.id) {
     throw new GoogleSyncError(body.error?.message || `Google API ${res.status}`, res.status);
@@ -111,8 +131,9 @@ export async function updateGoogleEvent(
 ): Promise<void> {
   const token = await withFreshGoogleToken(supabase, account);
   const calendarId = account.selected_calendar_id || 'primary';
+  const sendUpdates = hasRealAttendeeEmails(event) ? '?sendUpdates=all' : '';
   const res = await fetch(
-    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(externalId)}`,
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(externalId)}${sendUpdates}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -133,7 +154,7 @@ export async function deleteGoogleEvent(
   const token = await withFreshGoogleToken(supabase, account);
   const calendarId = account.selected_calendar_id || 'primary';
   const res = await fetch(
-    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(externalId)}`,
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(externalId)}?sendUpdates=all`,
     {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
@@ -145,7 +166,6 @@ export async function deleteGoogleEvent(
   }
 }
 
-// Fetch the list of calendars the user has on their connected Google account.
 export async function listGoogleCalendars(
   supabase: SupabaseClient,
   account: AccountRow
@@ -162,4 +182,144 @@ export async function listGoogleCalendars(
     summary: c.summary ?? c.id ?? '',
     primary: c.primary,
   }));
+}
+
+// ---------- PULL: import Google events INTO our DB ----------
+
+type GoogleEvent = {
+  id: string;
+  status?: string; // 'cancelled' for tombstones
+  summary?: string;
+  location?: string;
+  description?: string;
+  start?: { dateTime?: string; date?: string; timeZone?: string };
+  end?: { dateTime?: string; date?: string; timeZone?: string };
+  attendees?: { email?: string; displayName?: string }[];
+  reminders?: { useDefault?: boolean; overrides?: { method?: string; minutes?: number }[] };
+  updated?: string;
+};
+
+export async function pullGoogleEvents(
+  supabase: SupabaseClient,
+  account: AccountRow,
+  opts: { fromDays?: number; toDays?: number } = {}
+): Promise<{ imported: number; deleted: number }> {
+  const token = await withFreshGoogleToken(supabase, account);
+  const calendarId = account.selected_calendar_id || 'primary';
+  const fromDays = opts.fromDays ?? 30;
+  const toDays = opts.toDays ?? 90;
+  const timeMin = new Date(Date.now() - fromDays * 86400_000).toISOString();
+  const timeMax = new Date(Date.now() + toDays * 86400_000).toISOString();
+
+  let imported = 0;
+  let deleted = 0;
+  let pageToken: string | undefined;
+
+  do {
+    const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
+    url.searchParams.set('timeMin', timeMin);
+    url.searchParams.set('timeMax', timeMax);
+    url.searchParams.set('singleEvents', 'true');
+    url.searchParams.set('orderBy', 'startTime');
+    url.searchParams.set('showDeleted', 'true');
+    url.searchParams.set('maxResults', '250');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new GoogleSyncError(body.error?.message || `Google API ${res.status}`, res.status);
+    }
+
+    const items: GoogleEvent[] = body.items || [];
+    for (const item of items) {
+      if (!item.id) continue;
+      // Skip tombstones (deleted upstream events) — delete from local if present
+      if (item.status === 'cancelled') {
+        const { count } = await supabase
+          .from('events')
+          .delete({ count: 'exact' })
+          .eq('user_id', account.user_id)
+          .eq('calendar_account_id', account.id)
+          .eq('external_event_id', item.id);
+        deleted += count ?? 0;
+        continue;
+      }
+
+      const start = item.start?.dateTime || (item.start?.date ? `${item.start.date}T00:00:00Z` : null);
+      const end = item.end?.dateTime || (item.end?.date ? `${item.end.date}T23:59:59Z` : null);
+      if (!start || !end) continue;
+
+      const attendees = (item.attendees || [])
+        .map((a) => a.displayName || a.email)
+        .filter((s): s is string => !!s && !s.endsWith('@noreply.invalid'));
+
+      const upsertRow = {
+        user_id: account.user_id,
+        title: item.summary || '(제목 없음)',
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(end).toISOString(),
+        all_day: !!item.start?.date,
+        location_text: item.location ?? null,
+        attendees,
+        notes: item.description ?? null,
+        source_text: null,
+        source_type: 'manual' as const,
+        source_provider: 'google' as const,
+        calendar_account_id: account.id,
+        external_event_id: item.id,
+        status: 'synced' as const,
+        last_synced_at: new Date().toISOString(),
+        needs_confirmation: false,
+      };
+
+      // Upsert by (calendar_account_id, external_event_id) — unique index added in migration 0003.
+      const { data: existing } = await supabase
+        .from('events')
+        .select('id')
+        .eq('calendar_account_id', account.id)
+        .eq('external_event_id', item.id)
+        .maybeSingle();
+
+      let eventId: string | null = null;
+      if (existing) {
+        const { error } = await supabase
+          .from('events')
+          .update(upsertRow)
+          .eq('id', existing.id);
+        if (!error) eventId = existing.id;
+      } else {
+        const { data: inserted, error } = await supabase
+          .from('events')
+          .insert(upsertRow)
+          .select('id')
+          .single();
+        if (!error && inserted) eventId = inserted.id;
+      }
+
+      // Sync the reminder list from Google: replace ours with theirs.
+      if (eventId) {
+        const reminderMinutes: number[] = [];
+        if (item.reminders?.overrides) {
+          for (const r of item.reminders.overrides) {
+            if (typeof r.minutes === 'number') reminderMinutes.push(r.minutes);
+          }
+        }
+        // Replace via RPC for atomicity
+        await supabase.rpc('replace_event_reminders', {
+          p_event_id: eventId,
+          p_reminders: reminderMinutes.map((m) => ({ minutes_before: m, method: 'notification' })),
+        });
+        imported++;
+      }
+    }
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+
+  await supabase
+    .from('calendar_accounts')
+    .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
+    .eq('id', account.id);
+
+  return { imported, deleted };
 }

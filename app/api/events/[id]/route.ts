@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireUser } from '@/lib/supabase/server';
 import { deleteGoogleEvent, updateGoogleEvent, GoogleSyncError } from '@/lib/google-calendar';
+import { deleteMicrosoftEvent, updateMicrosoftEvent, MicrosoftSyncError } from '@/lib/microsoft-calendar';
 
 export const runtime = 'nodejs';
 
@@ -66,7 +67,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .single();
   if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  // If the event is synced to a Google calendar, propagate the update.
+  // If the event is synced to a provider, propagate the update.
   let syncWarning: string | null = null;
   if (data.calendar_account_id && data.external_event_id) {
     const { data: account } = await supabase
@@ -75,19 +76,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       .eq('id', data.calendar_account_id)
       .eq('user_id', user.id)
       .single();
-    if (account?.provider === 'google') {
+    if (account) {
+      const payload = {
+        title: data.title,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        location_text: data.location_text,
+        notes: data.notes,
+        attendees: data.attendees ?? [],
+        reminders: data.reminders ?? [],
+      };
       try {
-        await updateGoogleEvent(supabase, account, data.external_event_id, {
-          title: data.title,
-          start_time: data.start_time,
-          end_time: data.end_time,
-          location_text: data.location_text,
-          notes: data.notes,
-          attendees: data.attendees ?? [],
-          reminders: data.reminders ?? [],
-        });
+        if (account.provider === 'google') {
+          await updateGoogleEvent(supabase, account, data.external_event_id, payload);
+        } else if (account.provider === 'microsoft') {
+          await updateMicrosoftEvent(supabase, account, data.external_event_id, payload);
+        }
       } catch (e: unknown) {
-        syncWarning = e instanceof GoogleSyncError ? e.message : 'Google sync failed';
+        syncWarning =
+          e instanceof GoogleSyncError || e instanceof MicrosoftSyncError
+            ? e.message
+            : '캘린더 동기화에 실패했습니다.';
       }
     }
   }
@@ -120,6 +129,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
         await deleteGoogleEvent(supabase, account, event.external_event_id);
       } catch {
         // Best-effort: don't block local delete if Google is unreachable.
+      }
+    } else if (account?.provider === 'microsoft') {
+      try {
+        await deleteMicrosoftEvent(supabase, account, event.external_event_id);
+      } catch {
+        // Best-effort: don't block local delete if Microsoft is unreachable.
       }
     }
   }

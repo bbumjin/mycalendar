@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MapPin, Bell } from 'lucide-react';
 import { fmtTime, fmtDayMonth } from '@/lib/time';
+import { ProviderBadge } from '@/components/ProviderBadge';
 import type { EventRow } from '@/lib/types';
 
 export function EventCard({ event, showDate = false }: { event: EventRow; showDate?: boolean }) {
@@ -15,7 +16,10 @@ export function EventCard({ event, showDate = false }: { event: EventRow; showDa
         <div className="text-xs text-[var(--muted)] tabular-nums">{fmtTime(event.end_time)}</div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">{event.title}</div>
+        <div className="font-medium truncate flex items-center gap-2">
+          <ProviderBadge provider={event.source_provider} size="xs" />
+          <span className="truncate">{event.title}</span>
+        </div>
         <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted)]">
           {event.location_text && (
             <span className="inline-flex items-center gap-1 truncate">

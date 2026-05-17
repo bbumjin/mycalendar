@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   const origin = `${proto}://${host}`;
   const { data: accountsRaw } = await supabase
     .from('calendar_accounts')
-    .select('id, provider, provider_account_email, selected_calendar_name, is_default, token_expires_at')
+    .select('id, provider, provider_account_email, selected_calendar_name, is_default, token_expires_at, last_synced_at, last_sync_error')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
 
@@ -53,9 +53,10 @@ export default async function SettingsPage() {
       </section>
 
       <section className="card p-5 mb-4">
-        <h2 className="font-medium mb-1">캘린더 계정 연결 (선택)</h2>
+        <h2 className="font-medium mb-1">다른 캘린더 가져오기</h2>
         <p className="text-xs text-[var(--muted)] mb-4">
-          OAuth로 Google·Outlook 계정과 양방향 동기화합니다. 위 구독 방식이면 대부분의 경우 충분합니다.
+          Google·Outlook 캘린더를 연결하면 그쪽 일정이 MyCalendar에 통합되어 보입니다.
+          여기서 만드는 새 일정도 양방향으로 동기화돼 폰의 기본 캘린더 앱에도 함께 표시됩니다.
         </p>
         <ConnectedCalendars
           initialAccounts={accountsRaw ?? []}

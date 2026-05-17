@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireUser } from '@/lib/supabase/server';
 import { consumeOauthState } from '@/lib/oauth-state';
+import { pullGoogleEvents } from '@/lib/google-calendar';
 
 export const runtime = 'nodejs';
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.redirect(`${origin}/login`);
 
   const expiresAt = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString();
-  await supabase
+  const { data: account } = await supabase
     .from('calendar_accounts')
     .upsert(
       {
@@ -61,7 +62,21 @@ export async function GET(req: NextRequest) {
         is_default: true,
       },
       { onConflict: 'user_id,provider,provider_account_email' }
-    );
+    )
+    .select('id, user_id, provider, access_token, refresh_token, token_expires_at, selected_calendar_id')
+    .single();
+
+  // Pull events from Google into MyCalendar immediately (best-effort, non-blocking).
+  if (account) {
+    pullGoogleEvents(supabase, account).catch((e) => {
+      console.error('Initial Google pull failed:', e);
+      supabase
+        .from('calendar_accounts')
+        .update({ last_sync_error: e instanceof Error ? e.message : String(e) })
+        .eq('id', account.id)
+        .then(() => {});
+    });
+  }
 
   return NextResponse.redirect(`${origin}${back}`);
 }
