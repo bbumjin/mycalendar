@@ -1,65 +1,76 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { AppShell, PageTitle } from '@/components/AppShell';
+import { EventCard } from '@/components/EventCard';
+import { requireUser } from '@/lib/supabase/server';
+import { fmtDateLong, DEFAULT_TZ } from '@/lib/time';
+import { addDays, startOfDay, endOfDay } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+import type { EventRow } from '@/lib/types';
+import { Sparkles } from 'lucide-react';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  const { supabase, user } = await requireUser();
+  if (!user) return null;
+
+  const tz = DEFAULT_TZ;
+  const nowZ = toZonedTime(new Date(), tz);
+  const todayStart = startOfDay(nowZ);
+  const todayEnd = endOfDay(nowZ);
+  const weekEnd = endOfDay(addDays(todayStart, 7));
+
+  const { data } = await supabase
+    .from('events_with_reminders')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('start_time', todayStart.toISOString())
+    .lte('start_time', weekEnd.toISOString())
+    .order('start_time', { ascending: true });
+
+  const events = (data as EventRow[] | null) ?? [];
+  const today = events.filter((e) => new Date(e.start_time) <= todayEnd);
+  const upcoming = events.filter((e) => new Date(e.start_time) > todayEnd);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <AppShell active="today">
+      <PageTitle sub={fmtDateLong(new Date())}>오늘</PageTitle>
+
+      {today.length === 0 ? (
+        <EmptyToday />
+      ) : (
+        <div className="space-y-2">
+          {today.map((e) => (
+            <EventCard key={e.id} event={e} />
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      <h2 className="mt-10 mb-3 text-sm uppercase tracking-wide text-[var(--muted)]">다가오는 일정</h2>
+      {upcoming.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">이번 주 다른 일정이 없습니다.</p>
+      ) : (
+        <div className="space-y-2">
+          {upcoming.map((e) => (
+            <EventCard key={e.id} event={e} showDate />
+          ))}
         </div>
-      </main>
-    </div>
+      )}
+    </AppShell>
+  );
+}
+
+function EmptyToday() {
+  return (
+    <Link
+      href="/quick-add"
+      className="card p-8 flex flex-col items-center gap-3 text-center hover:bg-[var(--surface-2)]"
+    >
+      <Sparkles className="w-7 h-7" />
+      <div className="font-medium">오늘 일정이 없어요</div>
+      <p className="text-sm text-[var(--muted)] max-w-sm">
+        메시지를 붙여넣거나 한 문장 입력하거나 말하면 캘린더가 준비됩니다.
+      </p>
+    </Link>
   );
 }

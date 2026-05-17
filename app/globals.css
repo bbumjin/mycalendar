@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f1f1ee;
+  --fg: #111111;
+  --muted: #6b6b6b;
+  --border: #e7e7e3;
+  --accent: #111111;
+  --accent-soft: #1c1c1c;
+  --ring: rgba(0,0,0,0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Inter", "Pretendard", "Noto Sans KR", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0b0b0d;
+    --surface: #14141a;
+    --surface-2: #1c1c24;
+    --fg: #f4f4f6;
+    --muted: #9a9aa3;
+    --border: #2a2a33;
+    --accent: #ffffff;
+    --accent-soft: #ededf0;
+    --ring: rgba(255,255,255,0.08);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+*, *::before, *::after {
+  border-color: var(--border);
+}
+
+button { font-family: inherit; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 16px;
+  padding: 12px 18px;
+  font-weight: 500;
+}
+.btn-primary:disabled { opacity: 0.5; }
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--fg);
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+}
+
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: var(--fg);
+  width: 100%;
+}
+.input:focus { outline: none; box-shadow: 0 0 0 4px var(--ring); }
+
+::selection { background: var(--accent); color: var(--bg); }
