@@ -186,7 +186,12 @@ export default function ConfirmPage() {
 
         {error && <p className="text-rose-600 text-sm">{error}</p>}
         {warning && <p className="text-amber-600 text-sm">⚠️ {warning}</p>}
-        {typeof draft.extraction.confidence === 'number' && draft.extraction.confidence < 0.6 && (
+        {draft.warning && (
+          <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/50 p-3 text-sm text-amber-700 dark:text-amber-300">
+            ⚠️ {draft.warning}
+          </div>
+        )}
+        {typeof draft.extraction.confidence === 'number' && draft.extraction.confidence < 0.6 && !draft.warning && (
           <p className="text-amber-600 text-xs">추출 신뢰도가 낮습니다. 시간과 제목을 다시 확인해주세요.</p>
         )}
 

@@ -23,7 +23,12 @@ export default function QuickAddPage() {
     if (!res.ok) {
       throw new Error(json.error || '일정 추출에 실패했습니다.');
     }
-    saveDraft({ extraction: json.event, source_text: text, source_type: source });
+    saveDraft({
+      extraction: json.event,
+      source_text: text,
+      source_type: source,
+      warning: json.warning,
+    });
     router.push('/confirm');
   }
 

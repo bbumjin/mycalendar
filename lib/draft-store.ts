@@ -8,6 +8,7 @@ export type Draft = {
   extraction: Extraction;
   source_text: string;
   source_type: 'text' | 'voice';
+  warning?: string;
 };
 
 export function saveDraft(d: Draft) {
