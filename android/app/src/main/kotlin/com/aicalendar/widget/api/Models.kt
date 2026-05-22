@@ -22,8 +22,16 @@ data class NextResponse(
 )
 
 @Serializable
+data class MonthEvent(
+    val start_time: String,
+    val title: String,
+    val all_day: Boolean = false,
+)
+
+@Serializable
 data class MonthResponse(
     val month: String,
     val days_with_events: List<String>,
     val holidays: List<String> = emptyList(),
+    val events: List<MonthEvent> = emptyList(),
 )

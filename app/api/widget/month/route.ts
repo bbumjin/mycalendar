@@ -25,17 +25,20 @@ export async function GET(req: NextRequest) {
   const [{ data }, holidayData] = await Promise.all([
     admin
       .from('events')
-      .select('start_time')
+      .select('title, start_time, all_day')
       .eq('user_id', auth.userId)
       .gte('start_time', from.toISOString())
-      .lte('start_time', to.toISOString()),
+      .lte('start_time', to.toISOString())
+      .order('start_time', { ascending: true }),
     getKoreanHolidays(),
   ]);
 
   const days = new Set<string>();
-  for (const e of data ?? []) {
-    days.add(formatInTimeZone(new Date(e.start_time as unknown as string), tz, 'yyyy-MM-dd'));
-  }
+  const events = (data ?? []).map((e) => {
+    const startIso = e.start_time as unknown as string;
+    days.add(formatInTimeZone(new Date(startIso), tz, 'yyyy-MM-dd'));
+    return { start_time: startIso, title: (e.title as string) ?? '', all_day: !!e.all_day };
+  });
 
   const holidays = Array.from(holidayData.dates).filter((d) => d.startsWith(monthStr)).sort();
 
@@ -43,5 +46,6 @@ export async function GET(req: NextRequest) {
     month: monthStr,
     days_with_events: Array.from(days).sort(),
     holidays,
+    events,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
