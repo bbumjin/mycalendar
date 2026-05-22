@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AppShell, PageTitle } from '@/components/AppShell';
 import { ReminderEditor } from '@/components/ReminderEditor';
 import { clearDraft, loadDraft, type Draft } from '@/lib/draft-store';
-import { fmtDayMonth, fmtTime, DEFAULT_TZ, localInputValue, inputValueToIso } from '@/lib/time';
-import { Check, MapPin, Users, CalendarRange } from 'lucide-react';
+import { DEFAULT_TZ, inputValueToIso, localInputValue } from '@/lib/time';
+import { Check, CalendarRange } from 'lucide-react';
 
 type Account = {
   id: string;
@@ -22,7 +22,6 @@ export default function ConfirmPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [calendarAccountId, setCalendarAccountId] = useState<string>('local');
 
@@ -99,59 +98,40 @@ export default function ConfirmPage() {
 
   return (
     <AppShell active="add">
-      <PageTitle sub={draft.source_type === 'voice' ? '음성에서 추출' : '텍스트에서 추출'}>
-        이대로 저장할까요?
+      <PageTitle sub={draft.source_type === 'voice' ? '음성에서 추출 — 확인 후 저장' : '확인 후 저장'}>
+        일정 확인
       </PageTitle>
 
-      <div className="card p-6 space-y-5">
-        {!editing ? (
-          <>
-            <h2 className="text-2xl font-semibold leading-tight">{title}</h2>
-            <div className="text-[var(--muted)]">
-              <div>{fmtDayMonth(inputValueToIso(startLocal, DEFAULT_TZ))}</div>
-              <div className="text-[var(--fg)] text-lg">
-                {fmtTime(inputValueToIso(startLocal, DEFAULT_TZ))}{' '}
-                <span className="text-[var(--muted)]">–</span>{' '}
-                {fmtTime(inputValueToIso(endLocal, DEFAULT_TZ))}
-              </div>
-            </div>
-            {location && (
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="w-4 h-4 text-[var(--muted)]" /> {location}
-              </div>
-            )}
-            {attendees.length > 0 && (
-              <div className="flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-[var(--muted)]" /> {attendees.join(', ')}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <Field label="제목">
-              <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="시작">
-                <input type="datetime-local" className="input" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} />
-              </Field>
-              <Field label="종료">
-                <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
-              </Field>
-            </div>
-            <Field label="장소">
-              <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="선택 사항" />
-            </Field>
-            <Field label="참석자">
-              <input
-                className="input"
-                value={attendees.join(', ')}
-                onChange={(e) => setAttendees(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                placeholder="쉼표로 구분"
-              />
-            </Field>
+      <div className="card p-6 space-y-4">
+        {(draft.warning ||
+          (typeof draft.extraction.confidence === 'number' && draft.extraction.confidence < 0.6)) && (
+          <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/50 p-3 text-sm text-amber-700 dark:text-amber-300">
+            ⚠️ {draft.warning || '추출 신뢰도가 낮습니다. 시간과 제목을 다시 확인해주세요.'}
           </div>
         )}
+
+        <Field label="제목">
+          <input className="input text-lg font-medium" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="시작">
+            <input type="datetime-local" className="input" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} />
+          </Field>
+          <Field label="종료">
+            <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="장소">
+          <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="선택 사항" />
+        </Field>
+        <Field label="참석자">
+          <input
+            className="input"
+            value={attendees.join(', ')}
+            onChange={(e) => setAttendees(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+            placeholder="쉼표로 구분 (이메일이면 초대장 발송)"
+          />
+        </Field>
 
         <div className="border-t border-[var(--border)] pt-4">
           <p className="text-xs text-[var(--muted)] uppercase tracking-wide mb-2">알림</p>
@@ -176,30 +156,17 @@ export default function ConfirmPage() {
               ))}
               <option value="local">앱에만 저장 (동기화 안 함)</option>
             </select>
-            {calendarAccountId !== 'local' && (
-              <p className="text-xs text-[var(--muted)] mt-2">
-                연결된 캘린더에 저장되어 휴대폰의 캘린더 앱에서도 알림을 받습니다.
-              </p>
-            )}
           </div>
         )}
 
         {error && <p className="text-rose-600 text-sm">{error}</p>}
         {warning && <p className="text-amber-600 text-sm">⚠️ {warning}</p>}
-        {draft.warning && (
-          <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/50 p-3 text-sm text-amber-700 dark:text-amber-300">
-            ⚠️ {draft.warning}
-          </div>
-        )}
-        {typeof draft.extraction.confidence === 'number' && draft.extraction.confidence < 0.6 && !draft.warning && (
-          <p className="text-amber-600 text-xs">추출 신뢰도가 낮습니다. 시간과 제목을 다시 확인해주세요.</p>
-        )}
 
-        <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => setEditing((v) => !v)} className="text-sm underline-offset-4 hover:underline text-[var(--muted)]">
-            {editing ? '편집 완료' : '편집'}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button type="button" onClick={() => router.replace('/quick-add')} className="text-sm text-[var(--muted)] hover:underline underline-offset-4">
+            취소
           </button>
-          <button type="button" onClick={save} disabled={saving} className="btn-primary inline-flex items-center gap-2">
+          <button type="button" onClick={save} disabled={saving || !title.trim()} className="btn-primary inline-flex items-center gap-2">
             <Check className="w-4 h-4" />
             {saving ? '저장 중…' : '저장'}
           </button>
