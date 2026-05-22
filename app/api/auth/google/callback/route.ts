@@ -4,6 +4,7 @@ import { consumeOauthState } from '@/lib/oauth-state';
 import { pullGoogleEvents } from '@/lib/google-calendar';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
@@ -66,16 +67,17 @@ export async function GET(req: NextRequest) {
     .select('id, user_id, provider, access_token, refresh_token, token_expires_at, selected_calendar_id')
     .single();
 
-  // Pull events from Google into MyCalendar immediately (best-effort, non-blocking).
+  // Await the initial pull: a fire-and-forget promise is killed once we return
+  // the redirect in serverless, so events would never import.
   if (account) {
-    pullGoogleEvents(supabase, account).catch((e) => {
-      console.error('Initial Google pull failed:', e);
-      supabase
+    try {
+      await pullGoogleEvents(supabase, account);
+    } catch (e: unknown) {
+      await supabase
         .from('calendar_accounts')
         .update({ last_sync_error: e instanceof Error ? e.message : String(e) })
-        .eq('id', account.id)
-        .then(() => {});
-    });
+        .eq('id', account.id);
+    }
   }
 
   return NextResponse.redirect(`${origin}${back}`);
