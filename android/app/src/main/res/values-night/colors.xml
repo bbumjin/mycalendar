@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget palette (dark) — matches the web app's dark theme -->
+    <color name="widget_bg">#14141A</color>
+    <color name="widget_fg">#F4F4F6</color>
+    <color name="widget_muted">#9A9AA3</color>
+    <color name="widget_accent">#FFFFFF</color>
+    <color name="widget_surface2">#1C1C24</color>
+    <color name="widget_red">#F87171</color>
+    <color name="widget_blue">#60A5FA</color>
+</resources>

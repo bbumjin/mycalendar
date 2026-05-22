@@ -10,6 +10,7 @@ import androidx.glance.GlanceTheme
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -30,21 +31,15 @@ import androidx.glance.unit.ColorProvider
 import com.aicalendar.widget.api.ApiClient
 import com.aicalendar.widget.api.WidgetEvent
 import com.aicalendar.widget.store.TokenStore
-import com.aicalendar.widget.widgets.WidgetTheme.BG
-import com.aicalendar.widget.widgets.WidgetTheme.FG
-import com.aicalendar.widget.widgets.WidgetTheme.MUTED
 
 class TodayWidget : GlanceAppWidget() {
 
-    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
-        val events: List<WidgetEvent> = if (token == null) {
-            emptyList()
-        } else {
-            runCatching { ApiClient.today(token).events }.getOrDefault(emptyList())
-        }
+        val events: List<WidgetEvent> = if (token == null) emptyList()
+        else runCatching { ApiClient.today(token).events }.getOrDefault(emptyList())
 
         provideContent {
             GlanceTheme {
@@ -59,18 +54,15 @@ private fun TodayBody(events: List<WidgetEvent>) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(BG))
+            .background(WidgetTheme.bg)
             .cornerRadius(20.dp)
             .padding(14.dp)
-            .clickable(openApp())
+            .clickable(openCalendar())
     ) {
-        Text(
-            "오늘",
-            style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-        )
+        Text("오늘", style = TextStyle(color = WidgetTheme.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium))
         Spacer(GlanceModifier.height(4.dp))
         if (events.isEmpty()) {
-            Text("일정이 없습니다.", style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp))
+            Text("일정이 없습니다.", style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp))
         } else {
             events.take(4).forEach { e ->
                 Row(
@@ -81,18 +73,18 @@ private fun TodayBody(events: List<WidgetEvent>) {
                     Spacer(GlanceModifier.width(6.dp))
                     Text(
                         TimeFmt.short(e.start_time),
-                        style = TextStyle(color = ColorProvider(MUTED), fontSize = 12.sp),
+                        style = TextStyle(color = WidgetTheme.muted, fontSize = 12.sp),
                         modifier = GlanceModifier.width(48.dp)
                     )
                     Text(
                         e.title,
                         maxLines = 1,
-                        style = TextStyle(color = ColorProvider(FG), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        style = TextStyle(color = WidgetTheme.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     )
                 }
             }
             if (events.size > 4) {
-                Text("+${events.size - 4}개 더", style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp))
+                Text("+${events.size - 4}개 더", style = TextStyle(color = WidgetTheme.muted, fontSize = 11.sp))
             }
         }
     }
@@ -103,16 +95,16 @@ internal fun NotConfigured() {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(BG))
+            .background(WidgetTheme.bg)
             .cornerRadius(20.dp)
             .padding(16.dp)
-            .clickable(openApp()),
+            .clickable(openTokenSetup()),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("AI 캘린더", style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp, fontWeight = FontWeight.Bold))
+            Text("AI 캘린더", style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold))
             Spacer(GlanceModifier.height(4.dp))
-            Text("탭하여 토큰 설정", style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp))
+            Text("탭하여 토큰 설정", style = TextStyle(color = WidgetTheme.muted, fontSize = 11.sp))
         }
     }
 }
@@ -122,7 +114,7 @@ internal fun ProviderDot(provider: String?) {
     val color = when (provider) {
         "google" -> Color(0xFF4285F4)
         "microsoft" -> Color(0xFF0078D4)
-        else -> Color(0xFF111111)
+        else -> Color(0xFF8E8E93)
     }
     Box(
         modifier = GlanceModifier

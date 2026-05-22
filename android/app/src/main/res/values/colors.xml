@@ -8,4 +8,13 @@
     <color name="border">#E7E7E3</color>
     <color name="google">#4285F4</color>
     <color name="microsoft">#0078D4</color>
+
+    <!-- Widget palette (light) — overridden in values-night for dark mode -->
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_fg">#111111</color>
+    <color name="widget_muted">#6B6B6B</color>
+    <color name="widget_accent">#111111</color>
+    <color name="widget_surface2">#F1F1EE</color>
+    <color name="widget_red">#EF4444</color>
+    <color name="widget_blue">#3B82F6</color>
 </resources>

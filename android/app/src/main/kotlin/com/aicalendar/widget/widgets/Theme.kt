@@ -1,14 +1,17 @@
 package com.aicalendar.widget.widgets
 
-import androidx.compose.ui.graphics.Color
+import androidx.glance.unit.ColorProvider
+import com.aicalendar.widget.R
 
+// Resource-backed colors → Android auto-resolves values/ vs values-night/ for dark mode.
 object WidgetTheme {
-    val BG = Color(0xFFFFFFFF)
-    val SURFACE_2 = Color(0xFFF1F1EE)
-    val FG = Color(0xFF111111)
-    val MUTED = Color(0xFF6B6B6B)
-    val BORDER = Color(0xFFE7E7E3)
-    val ACCENT = Color(0xFF111111)
+    val bg = ColorProvider(R.color.widget_bg)
+    val fg = ColorProvider(R.color.widget_fg)
+    val muted = ColorProvider(R.color.widget_muted)
+    val accent = ColorProvider(R.color.widget_accent)
+    val surface2 = ColorProvider(R.color.widget_surface2)
+    val red = ColorProvider(R.color.widget_red)
+    val blue = ColorProvider(R.color.widget_blue)
 }
 
 object TimeFmt {
