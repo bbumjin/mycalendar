@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.aicalendar.widget.notifications.ReminderScheduler
 import com.aicalendar.widget.widgets.MonthWidget
 import com.aicalendar.widget.widgets.NextEventWidget
 import com.aicalendar.widget.widgets.TodayWidget
@@ -20,6 +21,8 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         TodayWidget().updateAll(applicationContext)
         NextEventWidget().updateAll(applicationContext)
         MonthWidget().updateAll(applicationContext)
+        // Re-schedule local notification alarms for upcoming events.
+        ReminderScheduler.sync(applicationContext)
         return Result.success()
     }
 }

@@ -35,3 +35,18 @@ data class MonthResponse(
     val holidays: List<String> = emptyList(),
     val events: List<MonthEvent> = emptyList(),
 )
+
+@Serializable
+data class ReminderMin(val minutes_before: Int)
+
+@Serializable
+data class ReminderEvent(
+    val id: String,
+    val title: String,
+    val start_time: String,
+    val location_text: String? = null,
+    val reminders: List<ReminderMin> = emptyList(),
+)
+
+@Serializable
+data class RemindersResponse(val events: List<ReminderEvent> = emptyList())

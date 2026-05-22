@@ -45,6 +45,12 @@ object ApiClient {
         return res.body()
     }
 
+    suspend fun reminders(token: String): RemindersResponse {
+        val res: HttpResponse = client.get("$base/api/widget/reminders") { parameter("token", token) }
+        if (!res.status.isSuccess()) error("reminders ${res.status.value}")
+        return res.body()
+    }
+
     /** Quick validity check used by the token entry screen. */
     suspend fun validateToken(token: String): Boolean = runCatching { today(token) }.isSuccess
 }

@@ -1,10 +1,15 @@
 package com.aicalendar.widget
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -33,10 +38,20 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val notifPermLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* result ignored */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Schedule periodic widget refresh on cold start
+        // Schedule periodic widget refresh + reminder sync on cold start
         RefreshScheduler.schedule(applicationContext)
+
+        // Ask for notification permission (Android 13+) so reminders can alert.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF111111))) {
@@ -114,7 +129,9 @@ fun SetupScreen() {
                         TodayWidget().updateAll(context)
                         NextEventWidget().updateAll(context)
                         MonthWidget().updateAll(context)
-                        status = "✓ 저장되었습니다. 홈 화면에 위젯을 추가해보세요."
+                        // Schedule local notification alarms for upcoming events
+                        com.aicalendar.widget.notifications.ReminderScheduler.sync(context)
+                        status = "✓ 저장되었습니다. 일정 알림이 예약됩니다."
                     } else {
                         status = "✗ 토큰이 유효하지 않습니다. 다시 확인해주세요."
                     }
