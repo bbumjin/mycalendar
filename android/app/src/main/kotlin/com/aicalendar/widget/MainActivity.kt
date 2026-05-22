@@ -182,8 +182,31 @@ fun SetupScreen() {
                 modifier = Modifier.weight(1f)
             ) { Text("지금 동기화") }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = {
+                    com.aicalendar.widget.notifications.ReminderScheduler.scheduleTest(context)
+                    status = "✓ 30초 뒤 테스트 알람 예약됨 (화면 꺼두고 기다려보세요)"
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("30초 후 알람") }
+
+            OutlinedButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("배터리 설정") }
+        }
         Text(
-            "테스트 알림이 안 울리면: 설정 → 앱 → AI 캘린더 위젯 → 알림 → \"일정 알람\" 채널 소리 켜기 / 알림 권한 허용 확인.",
+            "안 울리면: ① '테스트 알림'(즉시) 되는지 → 안 되면 알림 권한/채널 소리 확인. " +
+                "② '30초 후 알람' 되는지 → 안 되면 '배터리 설정'에서 이 앱을 최적화 제외(허용)로. " +
+                "삼성은 설정 → 배터리 → 백그라운드 사용 제한에서 '제한 안 함'도 확인.",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF6B6B6B)
         )

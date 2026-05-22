@@ -43,13 +43,12 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setContentTitle(title)
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .setContentIntent(contentPi)
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                builder.setSound(alarmSound(), android.media.AudioManager.STREAM_ALARM)
+                builder.setSound(alarmSound())
             }
             try {
                 NotificationManagerCompat.from(context).notify(notifId, builder.build())
@@ -57,9 +56,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 // POST_NOTIFICATIONS not granted.
             }
         }
-        // New channel id so the alarm sound/vibration settings actually apply
-        // (channel config is immutable once created).
-        const val CHANNEL_ID = "event_alarms_v1"
+        // New channel id (channel config is immutable once created). Uses
+        // USAGE_NOTIFICATION — USAGE_ALARM caused Samsung One UI to suppress the
+        // whole notification when the app wasn't foreground.
+        const val CHANNEL_ID = "event_alarms_v2"
 
         private fun alarmSound(): Uri =
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -70,15 +70,15 @@ class ReminderReceiver : BroadcastReceiver() {
                 val mgr = context.getSystemService(NotificationManager::class.java)
                 if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
                     val attrs = AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                     val ch = NotificationChannel(
                         CHANNEL_ID,
-                        "일정 알람",
+                        "일정 알림",
                         NotificationManager.IMPORTANCE_HIGH
                     ).apply {
-                        description = "예정된 일정 알람 (소리 + 진동)"
+                        description = "예정된 일정 알림 (소리 + 진동)"
                         setSound(alarmSound(), attrs)
                         enableVibration(true)
                         vibrationPattern = longArrayOf(0, 500, 300, 500)
