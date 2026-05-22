@@ -45,6 +45,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     })();
   }, [id]);
 
+  // When start changes, shift end by the same delta to preserve duration.
+  function changeStart(v: string) {
+    try {
+      const oldStart = Date.parse(inputValueToIso(startLocal, DEFAULT_TZ));
+      const oldEnd = Date.parse(inputValueToIso(endLocal, DEFAULT_TZ));
+      const newStart = Date.parse(inputValueToIso(v, DEFAULT_TZ));
+      if (!Number.isNaN(oldStart) && !Number.isNaN(oldEnd) && !Number.isNaN(newStart)) {
+        const dur = Math.max(0, oldEnd - oldStart);
+        setEndLocal(localInputValue(new Date(newStart + dur).toISOString(), DEFAULT_TZ));
+      }
+    } catch {
+      /* ignore */
+    }
+    setStartLocal(v);
+  }
+
   async function save() {
     if (!event) return;
     setBusy(true);
@@ -67,10 +83,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || '저장에 실패했습니다.');
-      if (json.sync_warning) setWarning(json.sync_warning);
-      setEvent(json.event);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+      // 저장되면 월간 캘린더로 복귀
+      router.replace('/calendar');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '저장에 실패했습니다.');
     } finally {
@@ -108,7 +122,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="시작">
-            <input type="datetime-local" className="input" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} />
+            <input type="datetime-local" className="input" value={startLocal} onChange={(e) => changeStart(e.target.value)} />
           </Field>
           <Field label="종료">
             <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
