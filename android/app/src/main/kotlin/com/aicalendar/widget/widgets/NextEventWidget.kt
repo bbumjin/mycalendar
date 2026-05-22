@@ -35,6 +35,8 @@ import com.aicalendar.widget.widgets.WidgetTheme.MUTED
 
 class NextEventWidget : GlanceAppWidget() {
 
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val data: NextResponse? = if (token == null) null

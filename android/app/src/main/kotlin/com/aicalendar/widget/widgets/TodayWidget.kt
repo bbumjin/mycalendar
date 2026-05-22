@@ -36,6 +36,8 @@ import com.aicalendar.widget.widgets.WidgetTheme.MUTED
 
 class TodayWidget : GlanceAppWidget() {
 
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val events: List<WidgetEvent> = if (token == null) {

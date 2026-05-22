@@ -42,6 +42,9 @@ private val BLUE = androidx.compose.ui.graphics.Color(0xFF3B82F6)
 
 class MonthWidget : GlanceAppWidget() {
 
+    // Recompose at the actual dragged size so the grid fills proportionally.
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
