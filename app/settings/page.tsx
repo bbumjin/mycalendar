@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/supabase/server';
 import { ProfileForm } from './ProfileForm';
 import { ConnectedCalendars } from './ConnectedCalendars';
 import { SubscriptionCard } from './SubscriptionCard';
+import { IcsSubscriptions } from './IcsSubscriptions';
 import { LogOut } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -53,10 +54,15 @@ export default async function SettingsPage() {
       </section>
 
       <section className="card p-5 mb-4">
-        <h2 className="font-medium mb-1">다른 캘린더 가져오기</h2>
+        <h2 className="font-medium mb-1">ICS 링크로 가져오기 (추천)</h2>
+        <IcsSubscriptions />
+      </section>
+
+      <section className="card p-5 mb-4">
+        <h2 className="font-medium mb-1">계정 연결로 가져오기 (양방향)</h2>
         <p className="text-xs text-[var(--muted)] mb-4">
-          Google·Outlook 캘린더를 연결하면 그쪽 일정이 MyCalendar에 통합되어 보입니다.
-          여기서 만드는 새 일정도 양방향으로 동기화돼 폰의 기본 캘린더 앱에도 함께 표시됩니다.
+          Google·Outlook 계정을 OAuth로 연결하면 양방향 동기화됩니다. 회사 계정은 관리자 동의가 필요할 수 있어요 —
+          그럴 땐 위 ICS 링크 방식을 쓰세요.
         </p>
         <ConnectedCalendars
           initialAccounts={accountsRaw ?? []}
