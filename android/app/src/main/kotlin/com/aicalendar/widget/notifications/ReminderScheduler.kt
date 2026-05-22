@@ -25,11 +25,11 @@ object ReminderScheduler {
         )
     }
 
-    /** Pull upcoming events and (re)schedule an exact alarm per reminder. */
-    suspend fun sync(context: Context) {
-        val token = TokenStore.get(context) ?: return
-        val resp = runCatching { ApiClient.reminders(token) }.getOrNull() ?: return
-        val am = context.getSystemService(AlarmManager::class.java) ?: return
+    /** Pull upcoming events and (re)schedule an exact alarm per reminder. Returns count scheduled. */
+    suspend fun sync(context: Context): Int {
+        val token = TokenStore.get(context) ?: return 0
+        val resp = runCatching { ApiClient.reminders(token) }.getOrNull() ?: return 0
+        val am = context.getSystemService(AlarmManager::class.java) ?: return 0
         ReminderReceiver.ensureChannel(context)
 
         // Cancel previously scheduled alarms.
@@ -66,6 +66,7 @@ object ReminderScheduler {
         }
 
         TokenStore.saveAlarmCodes(context, newCodes)
+        return newCodes.size
     }
 
     private fun beforeLabel(min: Int): String = when {

@@ -53,6 +53,11 @@ class MainActivity : ComponentActivity() {
             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        // Re-schedule alarms every time the app opens (app reinstall/reboot clears them).
+        lifecycleScope.launch {
+            runCatching { com.aicalendar.widget.notifications.ReminderScheduler.sync(applicationContext) }
+        }
+
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF111111))) {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF7F7F5)) {
@@ -152,6 +157,36 @@ fun SetupScreen() {
         status?.let {
             Text(it, color = if (it.startsWith("✓")) Color(0xFF059669) else Color(0xFFE11D48))
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── 알림 테스트 / 동기화 ──
+        Text("알림", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = {
+                    com.aicalendar.widget.notifications.ReminderReceiver.show(
+                        context, "테스트 알림", "알림과 소리가 정상 작동합니다 🔔", 999_999
+                    )
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("테스트 알림") }
+
+            Button(
+                onClick = {
+                    scope?.launch {
+                        val n = com.aicalendar.widget.notifications.ReminderScheduler.sync(context)
+                        status = "✓ 알림 ${n}건 예약됨"
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("지금 동기화") }
+        }
+        Text(
+            "테스트 알림이 안 울리면: 설정 → 앱 → AI 캘린더 위젯 → 알림 → \"일정 알람\" 채널 소리 켜기 / 알림 권한 허용 확인.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF6B6B6B)
+        )
 
         Spacer(Modifier.height(8.dp))
 

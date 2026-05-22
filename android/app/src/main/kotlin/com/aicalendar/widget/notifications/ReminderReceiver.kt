@@ -20,38 +20,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "일정 알림"
         val text = intent.getStringExtra(EXTRA_TEXT) ?: ""
         val notifId = intent.getIntExtra(EXTRA_NOTIF_ID, title.hashCode())
-
-        ensureChannel(context)
-
-        // Tapping the notification opens the web calendar.
-        val openIntent = Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.WEB_BASE_URL + "/calendar"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val contentPi = PendingIntent.getActivity(
-            context, notifId, openIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
-            .setAutoCancel(true)
-            .setContentIntent(contentPi)
-
-        // Pre-O: set the alarm sound directly on the builder (channels handle it on O+).
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            builder.setSound(alarmSound(), android.media.AudioManager.STREAM_ALARM)
-        }
-
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS not granted — ignore silently.
-        }
+        show(context, title, text, notifId)
     }
 
     companion object {
@@ -59,6 +28,35 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
         const val EXTRA_NOTIF_ID = "notifId"
+
+        /** Post the alarm notification now. Used by the receiver and the test button. */
+        fun show(context: Context, title: String, text: String, notifId: Int) {
+            ensureChannel(context)
+            val openIntent = Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.WEB_BASE_URL + "/calendar"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val contentPi = PendingIntent.getActivity(
+                context, notifId, openIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+                .setAutoCancel(true)
+                .setContentIntent(contentPi)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                builder.setSound(alarmSound(), android.media.AudioManager.STREAM_ALARM)
+            }
+            try {
+                NotificationManagerCompat.from(context).notify(notifId, builder.build())
+            } catch (_: SecurityException) {
+                // POST_NOTIFICATIONS not granted.
+            }
+        }
         // New channel id so the alarm sound/vibration settings actually apply
         // (channel config is immutable once created).
         const val CHANNEL_ID = "event_alarms_v1"
