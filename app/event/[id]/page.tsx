@@ -4,9 +4,9 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell, PageTitle } from '@/components/AppShell';
 import { ReminderEditor } from '@/components/ReminderEditor';
-import { fmtTime, fmtDayMonth, DEFAULT_TZ, localInputValue, inputValueToIso } from '@/lib/time';
+import { DEFAULT_TZ, localInputValue, inputValueToIso } from '@/lib/time';
 import type { EventRow } from '@/lib/types';
-import { Trash2, MapPin, Users, Save, CheckCircle2 } from 'lucide-react';
+import { Trash2, Save, CheckCircle2 } from 'lucide-react';
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -15,7 +15,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const [title, setTitle] = useState('');
   const [startLocal, setStartLocal] = useState('');
@@ -50,6 +50,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     setBusy(true);
     setError(null);
     setWarning(null);
+    setSaved(false);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
         method: 'PATCH',
@@ -68,7 +69,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       if (!res.ok) throw new Error(json.error || '저장에 실패했습니다.');
       if (json.sync_warning) setWarning(json.sync_warning);
       setEvent(json.event);
-      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '저장에 실패했습니다.');
     } finally {
@@ -81,7 +83,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     if (!confirm('이 일정을 삭제할까요?')) return;
     setBusy(true);
     const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
-    if (res.ok) router.replace('/');
+    if (res.ok) router.back();
     else setBusy(false);
   }
 
@@ -96,52 +98,50 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <AppShell>
-      <PageTitle>일정</PageTitle>
-      <div className="card p-6 space-y-5">
-        {!editing ? (
-          <>
-            <h2 className="text-2xl font-semibold leading-tight">{title}</h2>
-            <div className="text-[var(--muted)]">
-              <div>{fmtDayMonth(event.start_time)}</div>
-              <div className="text-[var(--fg)] text-lg">
-                {fmtTime(event.start_time)} <span className="text-[var(--muted)]">–</span> {fmtTime(event.end_time)}
-              </div>
-            </div>
-            {location && <div className="flex items-center gap-2 text-sm"><MapPin className="w-4 h-4 text-[var(--muted)]" /> {location}</div>}
-            {attendees.length > 0 && <div className="flex items-center gap-2 text-sm"><Users className="w-4 h-4 text-[var(--muted)]" /> {attendees.join(', ')}</div>}
-            {notes && <p className="text-sm whitespace-pre-wrap text-[var(--muted)]">{notes}</p>}
-            {event.status === 'synced' && (
-              <p className="text-xs text-emerald-600 inline-flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Google 캘린더에 동기화됨
-              </p>
-            )}
-            {event.status === 'failed' && (
-              <p className="text-xs text-amber-600">⚠️ Google 캘린더 동기화에 실패했습니다.</p>
-            )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <Field label="제목"><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="시작"><input type="datetime-local" className="input" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} /></Field>
-              <Field label="종료"><input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} /></Field>
-            </div>
-            <Field label="장소"><input className="input" value={location} onChange={(e) => setLocation(e.target.value)} /></Field>
-            <Field label="참석자">
-              <input
-                className="input"
-                value={attendees.join(', ')}
-                onChange={(e) => setAttendees(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-              />
-            </Field>
-            <Field label="메모"><textarea className="input min-h-[80px]" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
-          </div>
-        )}
+      <PageTitle sub={event.source_provider === 'google' ? 'Google 캘린더' : event.source_provider === 'microsoft' ? 'Outlook' : event.source_provider === 'ics' ? '구독 캘린더' : undefined}>
+        일정 편집
+      </PageTitle>
+
+      <div className="card p-6 space-y-4">
+        <Field label="제목">
+          <input className="input text-lg font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="시작">
+            <input type="datetime-local" className="input" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} />
+          </Field>
+          <Field label="종료">
+            <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="장소">
+          <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="선택 사항" />
+        </Field>
+        <Field label="참석자">
+          <input
+            className="input"
+            value={attendees.join(', ')}
+            onChange={(e) => setAttendees(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+            placeholder="쉼표로 구분 (이메일이면 초대장 발송)"
+          />
+        </Field>
+        <Field label="메모">
+          <textarea className="input min-h-[80px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </Field>
 
         <div className="border-t border-[var(--border)] pt-4">
           <p className="text-xs text-[var(--muted)] uppercase tracking-wide mb-2">알림</p>
           <ReminderEditor value={reminders} onChange={setReminders} />
         </div>
+
+        {event.status === 'synced' && (
+          <p className="text-xs text-emerald-600 inline-flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" /> 연결된 캘린더에 동기화됨
+          </p>
+        )}
+        {event.status === 'failed' && (
+          <p className="text-xs text-amber-600">⚠️ 캘린더 동기화에 실패했습니다.</p>
+        )}
 
         {event.source_text && (
           <details className="text-xs text-[var(--muted)]">
@@ -157,13 +157,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <button type="button" onClick={del} disabled={busy} className="text-sm text-rose-600 hover:underline inline-flex items-center gap-1">
             <Trash2 className="w-4 h-4" /> 삭제
           </button>
-          {editing ? (
-            <button type="button" onClick={save} disabled={busy} className="btn-primary inline-flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {saved && <span className="text-emerald-600 text-sm">저장됨</span>}
+            <button type="button" onClick={save} disabled={busy || !title.trim()} className="btn-primary inline-flex items-center gap-2">
               <Save className="w-4 h-4" /> {busy ? '저장 중…' : '저장'}
             </button>
-          ) : (
-            <button type="button" onClick={() => setEditing(true)} className="btn-secondary">편집</button>
-          )}
+          </div>
         </div>
       </div>
     </AppShell>
