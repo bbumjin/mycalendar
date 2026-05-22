@@ -9,7 +9,6 @@ import androidx.glance.GlanceTheme
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -27,7 +26,6 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.aicalendar.widget.MainActivity
 import com.aicalendar.widget.api.ApiClient
 import com.aicalendar.widget.store.TokenStore
 import com.aicalendar.widget.widgets.WidgetTheme.ACCENT
@@ -78,7 +76,7 @@ private fun MonthBody(today: LocalDate, daysWith: Set<String>, holidays: Set<Str
             .background(ColorProvider(BG))
             .cornerRadius(20.dp)
             .padding(12.dp)
-            .clickable(actionStartActivity<MainActivity>())
+            .clickable(openApp())
     ) {
         Text(
             "${yearMonth.year}년 ${yearMonth.monthValue}월",
