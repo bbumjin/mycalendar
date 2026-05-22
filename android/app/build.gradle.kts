@@ -26,7 +26,25 @@ android {
         buildConfig = true
     }
 
+    // Stable signing so every CI build shares one signature → installs over previous
+    // builds without "App not installed". The keystore is provided by CI (cached) at
+    // android/fixed-debug.keystore. Falls back to default debug signing if absent.
+    val fixedKeystore = rootProject.file("fixed-debug.keystore")
+    signingConfigs {
+        create("fixed") {
+            if (fixedKeystore.exists()) {
+                storeFile = fixedKeystore
+                storePassword = "android"
+                keyAlias = "aicalendar"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (fixedKeystore.exists()) signingConfig = signingConfigs.getByName("fixed")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

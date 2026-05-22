@@ -32,6 +32,23 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
+      # Persist one signing key across builds so APKs install over each other.
+      - name: Cache signing keystore
+        uses: actions/cache@v4
+        with:
+          path: android/fixed-debug.keystore
+          key: android-fixed-keystore-v1
+
+      - name: Generate keystore if missing
+        run: |
+          if [ ! -f android/fixed-debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore android/fixed-debug.keystore \
+              -storepass android -keypass android \
+              -alias aicalendar -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=AI Calendar, OU=App, O=AI Calendar, L=Seoul, S=Seoul, C=KR"
+          fi
+
       - name: Build debug APK
         working-directory: android
         run: gradle assembleDebug --no-daemon --stacktrace
