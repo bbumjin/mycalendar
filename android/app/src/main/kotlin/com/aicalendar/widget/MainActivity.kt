@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.lifecycleScope
 import com.aicalendar.widget.api.ApiClient
@@ -175,9 +174,5 @@ fun SetupScreen() {
                 }
             }
         }
-
-        // Suppress unused-warning for the manager import (we'll use it if user follows install path)
-        @Suppress("UNUSED_EXPRESSION")
-        GlanceAppWidgetManager(context)
     }
 }

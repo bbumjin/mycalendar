@@ -1,20 +1,19 @@
 package com.aicalendar.widget.widgets
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
-import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -56,9 +55,9 @@ class MonthWidget : GlanceAppWidget() {
         provideContent {
             GlanceTheme {
                 if (token == null) {
-                    NotConfigured(context)
+                    NotConfigured()
                 } else {
-                    MonthBody(today, daysWith, holidays, context)
+                    MonthBody(today, daysWith, holidays)
                 }
             }
         }
@@ -66,7 +65,7 @@ class MonthWidget : GlanceAppWidget() {
 }
 
 @androidx.compose.runtime.Composable
-private fun MonthBody(today: LocalDate, daysWith: Set<String>, holidays: Set<String>, context: Context) {
+private fun MonthBody(today: LocalDate, daysWith: Set<String>, holidays: Set<String>) {
     val yearMonth = YearMonth.from(today)
     val firstDay = yearMonth.atDay(1)
     val firstWeekday = (firstDay.dayOfWeek.value % 7) // 0=Sun, 1=Mon, …, 6=Sat
@@ -79,7 +78,7 @@ private fun MonthBody(today: LocalDate, daysWith: Set<String>, holidays: Set<Str
             .background(ColorProvider(BG))
             .cornerRadius(20.dp)
             .padding(12.dp)
-            .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
+            .clickable(actionStartActivity<MainActivity>())
     ) {
         Text(
             "${yearMonth.year}년 ${yearMonth.monthValue}월",

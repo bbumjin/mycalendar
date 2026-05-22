@@ -1,20 +1,19 @@
 package com.aicalendar.widget.widgets
 
 import android.content.Context
-import android.content.Intent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
-import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -29,7 +28,6 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import androidx.glance.unit.ColorProvider as UnitColorProvider
 import com.aicalendar.widget.MainActivity
 import com.aicalendar.widget.api.ApiClient
 import com.aicalendar.widget.api.WidgetEvent
@@ -50,40 +48,29 @@ class TodayWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                if (token == null) {
-                    NotConfigured(context)
-                } else {
-                    TodayBody(events, context)
-                }
+                if (token == null) NotConfigured() else TodayBody(events)
             }
         }
     }
 }
 
 @androidx.compose.runtime.Composable
-private fun TodayBody(events: List<WidgetEvent>, context: Context) {
+private fun TodayBody(events: List<WidgetEvent>) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(BG))
             .cornerRadius(20.dp)
             .padding(14.dp)
-            .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
+            .clickable(actionStartActivity<MainActivity>())
     ) {
         Text(
             "오늘",
-            style = TextStyle(
-                color = ColorProvider(MUTED),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
+            style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp, fontWeight = FontWeight.Medium)
         )
         Spacer(GlanceModifier.height(4.dp))
         if (events.isEmpty()) {
-            Text(
-                "일정이 없습니다.",
-                style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp)
-            )
+            Text("일정이 없습니다.", style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp))
         } else {
             events.take(4).forEach { e ->
                 Row(
@@ -95,7 +82,7 @@ private fun TodayBody(events: List<WidgetEvent>, context: Context) {
                     Text(
                         TimeFmt.short(e.start_time),
                         style = TextStyle(color = ColorProvider(MUTED), fontSize = 12.sp),
-                        modifier = GlanceModifier.width(58.dp)
+                        modifier = GlanceModifier.width(48.dp)
                     )
                     Text(
                         e.title,
@@ -105,36 +92,27 @@ private fun TodayBody(events: List<WidgetEvent>, context: Context) {
                 }
             }
             if (events.size > 4) {
-                Text(
-                    "+${events.size - 4}개 더",
-                    style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp)
-                )
+                Text("+${events.size - 4}개 더", style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp))
             }
         }
     }
 }
 
 @androidx.compose.runtime.Composable
-internal fun NotConfigured(context: Context) {
+internal fun NotConfigured() {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(BG))
             .cornerRadius(20.dp)
             .padding(16.dp)
-            .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+            .clickable(actionStartActivity<MainActivity>()),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "AI 캘린더",
-                style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            )
+            Text("AI 캘린더", style = TextStyle(color = ColorProvider(FG), fontSize = 14.sp, fontWeight = FontWeight.Bold))
             Spacer(GlanceModifier.height(4.dp))
-            Text(
-                "탭하여 토큰 설정",
-                style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp)
-            )
+            Text("탭하여 토큰 설정", style = TextStyle(color = ColorProvider(MUTED), fontSize = 11.sp))
         }
     }
 }
@@ -142,9 +120,9 @@ internal fun NotConfigured(context: Context) {
 @androidx.compose.runtime.Composable
 internal fun ProviderDot(provider: String?) {
     val color = when (provider) {
-        "google" -> androidx.compose.ui.graphics.Color(0xFF4285F4)
-        "microsoft" -> androidx.compose.ui.graphics.Color(0xFF0078D4)
-        else -> androidx.compose.ui.graphics.Color(0xFF111111)
+        "google" -> Color(0xFF4285F4)
+        "microsoft" -> Color(0xFF0078D4)
+        else -> Color(0xFF111111)
     }
     Box(
         modifier = GlanceModifier
@@ -153,9 +131,6 @@ internal fun ProviderDot(provider: String?) {
             .cornerRadius(4.dp)
             .background(ColorProvider(color))
     ) {}
-    // Suppress unused
-    @Suppress("UNUSED_EXPRESSION")
-    UnitColorProvider
 }
 
 class TodayWidgetReceiver : GlanceAppWidgetReceiver() {
