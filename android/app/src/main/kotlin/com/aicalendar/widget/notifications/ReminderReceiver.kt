@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -29,19 +31,24 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
             .setAutoCancel(true)
             .setContentIntent(contentPi)
-            .build()
+
+        // Pre-O: set the alarm sound directly on the builder (channels handle it on O+).
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            builder.setSound(alarmSound(), android.media.AudioManager.STREAM_ALARM)
+        }
 
         try {
-            NotificationManagerCompat.from(context).notify(notifId, notification)
+            NotificationManagerCompat.from(context).notify(notifId, builder.build())
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS not granted — ignore silently.
         }
@@ -52,17 +59,32 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
         const val EXTRA_NOTIF_ID = "notifId"
-        const val CHANNEL_ID = "event_reminders"
+        // New channel id so the alarm sound/vibration settings actually apply
+        // (channel config is immutable once created).
+        const val CHANNEL_ID = "event_alarms_v1"
+
+        private fun alarmSound(): Uri =
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val mgr = context.getSystemService(NotificationManager::class.java)
                 if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
+                    val attrs = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
                     val ch = NotificationChannel(
                         CHANNEL_ID,
-                        "일정 알림",
+                        "일정 알람",
                         NotificationManager.IMPORTANCE_HIGH
-                    ).apply { description = "예정된 일정 알림" }
+                    ).apply {
+                        description = "예정된 일정 알람 (소리 + 진동)"
+                        setSound(alarmSound(), attrs)
+                        enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 500, 300, 500)
+                    }
                     mgr.createNotificationChannel(ch)
                 }
             }

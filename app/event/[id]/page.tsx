@@ -157,13 +157,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <p className="text-xs text-amber-600">⚠️ 캘린더 동기화에 실패했습니다.</p>
         )}
 
-        {event.source_text && (
-          <details className="text-xs text-[var(--muted)]">
-            <summary className="cursor-pointer">원본 입력 보기</summary>
-            <pre className="mt-2 p-3 bg-[var(--surface-2)] rounded-lg whitespace-pre-wrap">{event.source_text}</pre>
-          </details>
-        )}
-
         {error && <p className="text-rose-600 text-sm">{error}</p>}
         {warning && <p className="text-amber-600 text-sm">⚠️ {warning}</p>}
 

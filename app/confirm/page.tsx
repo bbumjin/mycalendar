@@ -94,7 +94,6 @@ export default function ConfirmPage() {
           end_time,
           location_text: location || null,
           attendees,
-          source_text: draft!.source_text,
           source_type: draft!.source_type,
           ai_confidence: draft!.extraction.confidence,
           reminders,

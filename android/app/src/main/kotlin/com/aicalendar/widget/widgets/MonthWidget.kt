@@ -36,8 +36,9 @@ import java.time.ZoneId
 
 class MonthWidget : GlanceAppWidget() {
 
-    // Recompose at the actual dragged size so the grid fills proportionally.
-    override val sizeMode = SizeMode.Exact
+    // Single layout (default) — more robust for the dense grid; fillMaxSize still
+    // stretches the content when the widget is resized.
+    override val sizeMode = SizeMode.Single
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
@@ -46,6 +47,7 @@ class MonthWidget : GlanceAppWidget() {
         val resp = if (token == null) null
         else runCatching { ApiClient.month(token, ym) }.getOrNull()
         val holidays = resp?.holidays?.toSet() ?: emptySet()
+        val daysWith = resp?.days_with_events?.toSet() ?: emptySet()
         val byDay = HashMap<String, MutableList<MonthEvent>>()
         resp?.events?.forEach { ev ->
             byDay.getOrPut(TimeFmt.yyyymmdd(ev.start_time)) { mutableListOf() }.add(ev)
@@ -53,7 +55,7 @@ class MonthWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                if (token == null) NotConfigured() else MonthBody(today, holidays, byDay)
+                if (token == null) NotConfigured() else MonthBody(today, holidays, daysWith, byDay)
             }
         }
     }
@@ -63,6 +65,7 @@ class MonthWidget : GlanceAppWidget() {
 private fun MonthBody(
     today: LocalDate,
     holidays: Set<String>,
+    daysWith: Set<String>,
     byDay: Map<String, List<MonthEvent>>
 ) {
     val yearMonth = YearMonth.from(today)
@@ -147,15 +150,20 @@ private fun MonthBody(
                                         fontWeight = if (isToday || isHoliday) FontWeight.Bold else FontWeight.Normal
                                     )
                                 )
-                                dayEvents.take(2).forEach { ev ->
+                                if (dayEvents.isNotEmpty()) {
+                                    // First event's time (most informative), then a small +N.
+                                    val first = dayEvents.first()
                                     Text(
-                                        if (ev.all_day) "종일" else TimeFmt.short(ev.start_time),
+                                        if (first.all_day) "종일" else TimeFmt.short(first.start_time),
                                         maxLines = 1,
                                         style = TextStyle(color = subColor, fontSize = 8.sp)
                                     )
-                                }
-                                if (dayEvents.size > 2) {
-                                    Text("+${dayEvents.size - 2}", style = TextStyle(color = subColor, fontSize = 8.sp))
+                                    if (dayEvents.size > 1) {
+                                        Text("+${dayEvents.size - 1}", style = TextStyle(color = subColor, fontSize = 8.sp))
+                                    }
+                                } else if (daysWith.contains(ymd)) {
+                                    // Fallback: event data didn't load — at least mark the day with a dot.
+                                    Text("•", style = TextStyle(color = subColor, fontSize = 10.sp))
                                 }
                             }
                         }
