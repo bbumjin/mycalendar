@@ -8,6 +8,9 @@ on:
       - '.github/workflows/android.yml'
   workflow_dispatch: {}
 
+permissions:
+  contents: write # needed to publish the APK to a Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,10 +36,14 @@ jobs:
         working-directory: android
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Publish APK to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: aicalendar-widget-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
+          tag_name: widget-latest
+          name: AI 캘린더 위젯 (최신 빌드)
+          body: |
+            자동 빌드된 디버그 APK입니다.
+            아래 **app-debug.apk** 를 폰으로 다운로드해 설치하세요.
+            (설정 → 알 수 없는 출처 앱 설치 허용 필요)
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          make_latest: 'true'
