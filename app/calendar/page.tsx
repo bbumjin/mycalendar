@@ -98,19 +98,22 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
                 </div>
               )}
               <div className="mt-1 space-y-0.5">
-                {dayEvents.slice(0, 3).map((e) => (
-                  <div
-                    key={e.id}
-                    className={`truncate text-[11px] leading-tight rounded px-1 py-0.5 ${
-                      isToday ? 'bg-[var(--bg)]/15 text-[var(--bg)]' : 'bg-[var(--surface-2)] text-[var(--fg)]'
-                    }`}
-                  >
-                    <span className={isToday ? 'text-[var(--bg)]/70 tabular-nums' : 'text-[var(--muted)] tabular-nums'}>
-                      {fmtTime(e.start_time)}
-                    </span>{' '}
-                    {e.title}
-                  </div>
-                ))}
+                {dayEvents.slice(0, 3).map((e) => {
+                  const past = new Date(e.end_time).getTime() < Date.now();
+                  return (
+                    <div
+                      key={e.id}
+                      className={`truncate text-[11px] leading-tight rounded px-1 py-0.5 ${
+                        isToday ? 'bg-[var(--bg)]/15 text-[var(--bg)]' : 'bg-[var(--surface-2)] text-[var(--fg)]'
+                      } ${past ? 'line-through opacity-60' : ''}`}
+                    >
+                      <span className={isToday ? 'text-[var(--bg)]/70 tabular-nums' : 'text-[var(--muted)] tabular-nums'}>
+                        {fmtTime(e.start_time)}
+                      </span>{' '}
+                      {e.title}
+                    </div>
+                  );
+                })}
                 {dayEvents.length > 3 && (
                   <div className={`text-[10px] ${isToday ? 'text-[var(--bg)]/70' : 'text-[var(--muted)]'}`}>
                     +{dayEvents.length - 3}

@@ -5,20 +5,21 @@ import { ProviderBadge } from '@/components/ProviderBadge';
 import type { EventRow } from '@/lib/types';
 
 export function EventCard({ event, showDate = false }: { event: EventRow; showDate?: boolean }) {
+  const past = new Date(event.end_time).getTime() < Date.now();
   return (
     <Link
       href={`/event/${event.id}`}
-      className="card p-4 flex items-start gap-4 hover:translate-y-[-1px] transition-transform"
+      className={`card p-4 flex items-start gap-4 hover:translate-y-[-1px] transition-transform ${past ? 'opacity-55' : ''}`}
     >
       <div className="text-right w-20 shrink-0">
         {showDate && <div className="text-xs text-[var(--muted)]">{fmtDayMonth(event.start_time)}</div>}
-        <div className="font-medium tabular-nums">{fmtTime(event.start_time)}</div>
+        <div className={`font-medium tabular-nums ${past ? 'line-through' : ''}`}>{fmtTime(event.start_time)}</div>
         <div className="text-xs text-[var(--muted)] tabular-nums">{fmtTime(event.end_time)}</div>
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate flex items-center gap-2">
           <ProviderBadge provider={event.source_provider} size="xs" />
-          <span className="truncate">{event.title}</span>
+          <span className={`truncate ${past ? 'line-through' : ''}`}>{event.title}</span>
         </div>
         <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted)]">
           {event.location_text && (
