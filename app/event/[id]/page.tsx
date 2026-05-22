@@ -3,7 +3,6 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell, PageTitle } from '@/components/AppShell';
-import { AddToCalendarButton } from '@/components/AddToCalendarButton';
 import { ReminderEditor } from '@/components/ReminderEditor';
 import { fmtTime, fmtDayMonth, DEFAULT_TZ, localInputValue, inputValueToIso } from '@/lib/time';
 import type { EventRow } from '@/lib/types';
@@ -142,14 +141,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         <div className="border-t border-[var(--border)] pt-4">
           <p className="text-xs text-[var(--muted)] uppercase tracking-wide mb-2">알림</p>
           <ReminderEditor value={reminders} onChange={setReminders} />
-        </div>
-
-        <div className="border-t border-[var(--border)] pt-4 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wide mb-1">캘린더 앱으로 보내기</p>
-            <p className="text-xs text-[var(--muted)]">.ics 파일을 받아 폰의 캘린더에 알림과 함께 추가됩니다.</p>
-          </div>
-          <AddToCalendarButton eventId={event.id} />
         </div>
 
         {event.source_text && (
