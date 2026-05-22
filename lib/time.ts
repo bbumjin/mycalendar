@@ -9,15 +9,15 @@ export function fmtDayMonth(iso: string, tz = DEFAULT_TZ) {
 }
 
 export function fmtTime(iso: string, tz = DEFAULT_TZ) {
-  return formatInTimeZone(parseISO(iso), tz, 'a h:mm', { locale: ko });
+  return formatInTimeZone(parseISO(iso), tz, 'HH:mm', { locale: ko });
 }
 
 export function fmtTimeShort(iso: string, tz = DEFAULT_TZ) {
-  return formatInTimeZone(parseISO(iso), tz, 'a h:mm', { locale: ko });
+  return formatInTimeZone(parseISO(iso), tz, 'HH:mm', { locale: ko });
 }
 
 export function fmtDateTime(iso: string, tz = DEFAULT_TZ) {
-  return formatInTimeZone(parseISO(iso), tz, "M월 d일 (EEE) • a h:mm", { locale: ko });
+  return formatInTimeZone(parseISO(iso), tz, "M월 d일 (EEE) • HH:mm", { locale: ko });
 }
 
 export function fmtDateLong(d: Date, tz = DEFAULT_TZ) {

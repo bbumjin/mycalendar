@@ -4,26 +4,37 @@ import { Calendar, Home, Plus, Settings, Sparkles } from 'lucide-react';
 export function AppShell({
   children,
   active,
+  fabHref = '/quick-add',
 }: {
   children: React.ReactNode;
   active?: 'today' | 'add' | 'month' | 'settings' | 'briefing';
+  fabHref?: string;
 }) {
   return (
     <div className="flex flex-col min-h-dvh">
       <header className="sticky top-0 z-20 backdrop-blur bg-[color:var(--bg)]/80 border-b border-[var(--border)]">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+          <Link href="/calendar" className="flex items-center gap-2 font-semibold tracking-tight">
             <Sparkles className="w-5 h-5" />
             AI 캘린더
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <NavLink href="/" active={active === 'today'}>오늘</NavLink>
-            <NavLink href="/calendar" active={active === 'month'}>월간</NavLink>
-            <NavLink href="/briefing" active={active === 'briefing'}>브리핑</NavLink>
-            <NavLink href="/settings" active={active === 'settings'} aria-label="설정">
+
+          <div className="flex items-center gap-2">
+            {/* 월간 <-> 브리핑 토글 */}
+            <div className="flex items-center bg-[var(--surface-2)] border border-[var(--border)] rounded-full p-0.5 text-sm">
+              <Toggle href="/calendar" active={active === 'month'}>월간</Toggle>
+              <Toggle href="/briefing" active={active === 'briefing'}>브리핑</Toggle>
+            </div>
+            <Link
+              href="/settings"
+              aria-label="설정"
+              className={`p-2 rounded-full transition ${
+                active === 'settings' ? 'bg-[var(--accent)] text-[var(--bg)]' : 'text-[var(--muted)] hover:text-[var(--fg)]'
+              }`}
+            >
               <Settings className="w-4 h-4" />
-            </NavLink>
-          </nav>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -32,7 +43,7 @@ export function AppShell({
       </main>
 
       <Link
-        href="/quick-add"
+        href={fabHref}
         aria-label="빠른 추가"
         className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-[var(--accent)] text-[var(--bg)] grid place-items-center shadow-xl shadow-black/10 transition-transform active:scale-95"
       >
@@ -42,24 +53,13 @@ export function AppShell({
   );
 }
 
-function NavLink({
-  href,
-  active,
-  children,
-  ...rest
-}: {
-  href: string;
-  active?: boolean;
-  children: React.ReactNode;
-  'aria-label'?: string;
-}) {
+function Toggle({ href, active, children }: { href: string; active?: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}
       className={`px-3 py-1.5 rounded-full transition ${
         active ? 'bg-[var(--accent)] text-[var(--bg)]' : 'text-[var(--muted)] hover:text-[var(--fg)]'
       }`}
-      {...rest}
     >
       {children}
     </Link>

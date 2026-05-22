@@ -5,10 +5,11 @@ import { Mic, Square, Sparkles } from 'lucide-react';
 
 type Props = {
   onExtract: (text: string, source: 'text' | 'voice') => void | Promise<void>;
+  initialText?: string;
 };
 
-export function QuickAddInput({ onExtract }: Props) {
-  const [text, setText] = useState('');
+export function QuickAddInput({ onExtract, initialText = '' }: Props) {
+  const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState<null | 'extract' | 'transcribe' | 'record'>(null);
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);

@@ -1,13 +1,31 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell, PageTitle } from '@/components/AppShell';
 import { QuickAddInput } from '@/components/QuickAddInput';
 import { saveDraft } from '@/lib/draft-store';
 import { DEFAULT_TZ } from '@/lib/time';
 
 export default function QuickAddPage() {
+  return (
+    <Suspense fallback={null}>
+      <QuickAddInner />
+    </Suspense>
+  );
+}
+
+function QuickAddInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const dateParam = search.get('date'); // YYYY-MM-DD
+
+  // Prefill the textarea with the chosen date so the user just types the rest.
+  let prefill = '';
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split('-').map(Number);
+    prefill = `${y}년 ${m}월 ${d}일 `;
+  }
 
   async function handleExtract(text: string, source: 'text' | 'voice') {
     const res = await fetch('/api/extract', {
@@ -37,14 +55,16 @@ export default function QuickAddPage() {
       <PageTitle sub="텍스트를 붙여넣거나 입력하거나 말해보세요. 나머지는 AI가 처리합니다.">
         빠른 추가
       </PageTitle>
-      <QuickAddInput onExtract={handleExtract} />
+      <QuickAddInput onExtract={handleExtract} initialText={prefill} />
 
-      <div className="mt-10 grid gap-3">
-        <p className="text-xs uppercase tracking-wide text-[var(--muted)]">예시</p>
-        <Example text="다음 주 화요일 오후 3시, 강남역 스타벅스에서 David와 미팅" />
-        <Example text="내일 오후 2시에 분당서울대병원 진료 예약" />
-        <Example text="금요일 저녁 7시 판교에서 민수랑 저녁" />
-      </div>
+      {!dateParam && (
+        <div className="mt-10 grid gap-3">
+          <p className="text-xs uppercase tracking-wide text-[var(--muted)]">예시</p>
+          <Example text="다음 주 화요일 오후 3시, 강남역 스타벅스에서 David와 미팅" />
+          <Example text="내일 오후 2시에 분당서울대병원 진료 예약" />
+          <Example text="금요일 저녁 7시 판교에서 민수랑 저녁" />
+        </div>
+      )}
     </AppShell>
   );
 }
