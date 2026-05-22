@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'https://www.googleapis.com/auth/calendar.events email profile');
   url.searchParams.set('access_type', 'offline');
-  url.searchParams.set('prompt', 'consent');
+  // 'select_account consent' forces both the account chooser and refresh-token re-issue.
+  url.searchParams.set('prompt', 'select_account consent');
   url.searchParams.set('state', state);
   return NextResponse.redirect(url);
 }

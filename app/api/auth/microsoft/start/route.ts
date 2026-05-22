@@ -29,6 +29,9 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'Calendars.ReadWrite offline_access User.Read');
   url.searchParams.set('response_mode', 'query');
+  // Always show the account picker so users with multiple Microsoft accounts
+  // aren't silently signed into a cached session.
+  url.searchParams.set('prompt', 'select_account');
   url.searchParams.set('state', state);
   return NextResponse.redirect(url);
 }
