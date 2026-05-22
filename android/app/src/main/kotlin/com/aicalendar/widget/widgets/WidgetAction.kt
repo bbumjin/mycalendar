@@ -21,6 +21,9 @@ fun openCalendar(): Action = browser("/calendar")
 /** The + button opens quick-add. */
 fun openQuickAdd(): Action = browser("/quick-add")
 
+/** Tapping a day cell opens that day's event list (web /day/YYYY-MM-DD). */
+fun openDay(date: String): Action = browser("/day/$date")
+
 /** Used by the not-configured state to open the in-app token setup screen. */
 @Composable
 fun openTokenSetup(): Action =

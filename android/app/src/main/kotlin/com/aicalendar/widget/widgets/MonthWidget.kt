@@ -131,9 +131,10 @@ private fun MonthBody(
                     }
                     val subColor = if (isToday) WidgetTheme.bg else WidgetTheme.muted
 
-                    val cellMod = GlanceModifier.defaultWeight().fillMaxHeight().padding(1.dp).let {
-                        if (isToday) it.cornerRadius(6.dp).background(WidgetTheme.accent) else it
-                    }
+                    var cellMod = GlanceModifier.defaultWeight().fillMaxHeight().padding(1.dp)
+                    if (isToday) cellMod = cellMod.cornerRadius(6.dp).background(WidgetTheme.accent)
+                    // Tapping an in-month day opens that day's event list.
+                    if (inMonth) cellMod = cellMod.clickable(openDay(ymd))
 
                     Box(modifier = cellMod) {
                         if (inMonth) {
