@@ -199,122 +199,155 @@ type GoogleEvent = {
   updated?: string;
 };
 
+// List ALL calendars the user can at least read (holidays, shared, secondary, etc.).
+// Falls back to ['primary'] if the token lacks calendarList scope (older
+// connections granted only calendar.events) so sync never hard-fails.
+async function listAllReadableCalendars(token: string): Promise<{ id: string }[]> {
+  const out: { id: string }[] = [];
+  let pageToken: string | undefined;
+  try {
+    do {
+      const url = new URL(`${CALENDAR_API}/users/me/calendarList`);
+      url.searchParams.set('minAccessRole', 'reader');
+      url.searchParams.set('maxResults', '250');
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const body = await res.json();
+      if (!res.ok) throw new GoogleSyncError(body.error?.message || `Google API ${res.status}`, res.status);
+      type Item = { id?: string };
+      for (const c of (body.items as Item[] | undefined) || []) {
+        if (c.id) out.push({ id: c.id });
+      }
+      pageToken = body.nextPageToken;
+    } while (pageToken);
+  } catch {
+    // Insufficient scope (calendar.events only) — fall back to primary.
+    return [{ id: 'primary' }];
+  }
+  return out.length > 0 ? out : [{ id: 'primary' }];
+}
+
 export async function pullGoogleEvents(
   supabase: SupabaseClient,
   account: AccountRow,
   opts: { fromDays?: number; toDays?: number } = {}
 ): Promise<{ imported: number; deleted: number }> {
   const token = await withFreshGoogleToken(supabase, account);
-  const calendarId = account.selected_calendar_id || 'primary';
   const fromDays = opts.fromDays ?? 30;
-  const toDays = opts.toDays ?? 90;
+  const toDays = opts.toDays ?? 365;
   const timeMin = new Date(Date.now() - fromDays * 86400_000).toISOString();
   const timeMax = new Date(Date.now() + toDays * 86400_000).toISOString();
 
+  // Pull from EVERY calendar the user has, so the unified view is complete.
+  const calendars = await listAllReadableCalendars(token);
+
   let imported = 0;
   let deleted = 0;
-  let pageToken: string | undefined;
+  const seen = new Set<string>();
 
-  do {
-    const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
-    url.searchParams.set('timeMin', timeMin);
-    url.searchParams.set('timeMax', timeMax);
-    url.searchParams.set('singleEvents', 'true');
-    url.searchParams.set('orderBy', 'startTime');
-    url.searchParams.set('showDeleted', 'true');
-    url.searchParams.set('maxResults', '250');
-    if (pageToken) url.searchParams.set('pageToken', pageToken);
+  for (const cal of calendars) {
+    let pageToken: string | undefined;
+    do {
+      const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(cal.id)}/events`);
+      url.searchParams.set('timeMin', timeMin);
+      url.searchParams.set('timeMax', timeMax);
+      url.searchParams.set('singleEvents', 'true');
+      url.searchParams.set('orderBy', 'startTime');
+      url.searchParams.set('maxResults', '250');
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new GoogleSyncError(body.error?.message || `Google API ${res.status}`, res.status);
-    }
-
-    const items: GoogleEvent[] = body.items || [];
-    for (const item of items) {
-      if (!item.id) continue;
-      // Skip tombstones (deleted upstream events) — delete from local if present
-      if (item.status === 'cancelled') {
-        const { count } = await supabase
-          .from('events')
-          .delete({ count: 'exact' })
-          .eq('user_id', account.user_id)
-          .eq('calendar_account_id', account.id)
-          .eq('external_event_id', item.id);
-        deleted += count ?? 0;
-        continue;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const body = await res.json();
+      if (!res.ok) {
+        // A single calendar failing (e.g. lost access) shouldn't abort the whole sync.
+        break;
       }
 
-      const start = item.start?.dateTime || (item.start?.date ? `${item.start.date}T00:00:00Z` : null);
-      const end = item.end?.dateTime || (item.end?.date ? `${item.end.date}T23:59:59Z` : null);
-      if (!start || !end) continue;
+      const items: GoogleEvent[] = body.items || [];
+      for (const item of items) {
+        if (!item.id || item.status === 'cancelled') continue;
 
-      const attendees = (item.attendees || [])
-        .map((a) => a.displayName || a.email)
-        .filter((s): s is string => !!s && !s.endsWith('@noreply.invalid'));
+        const start = item.start?.dateTime || (item.start?.date ? `${item.start.date}T00:00:00Z` : null);
+        const end = item.end?.dateTime || (item.end?.date ? `${item.end.date}T23:59:59Z` : null);
+        if (!start || !end) continue;
 
-      const upsertRow = {
-        user_id: account.user_id,
-        title: item.summary || '(제목 없음)',
-        start_time: new Date(start).toISOString(),
-        end_time: new Date(end).toISOString(),
-        all_day: !!item.start?.date,
-        location_text: item.location ?? null,
-        attendees,
-        notes: item.description ?? null,
-        source_text: null,
-        source_type: 'manual' as const,
-        source_provider: 'google' as const,
-        calendar_account_id: account.id,
-        external_event_id: item.id,
-        status: 'synced' as const,
-        last_synced_at: new Date().toISOString(),
-        needs_confirmation: false,
-      };
+        // Composite id so the same UID across different calendars never collides.
+        const externalId = `${cal.id}::${item.id}`;
+        seen.add(externalId);
 
-      // Upsert by (calendar_account_id, external_event_id) — unique index added in migration 0003.
-      const { data: existing } = await supabase
-        .from('events')
-        .select('id')
-        .eq('calendar_account_id', account.id)
-        .eq('external_event_id', item.id)
-        .maybeSingle();
+        const attendees = (item.attendees || [])
+          .map((a) => a.displayName || a.email)
+          .filter((s): s is string => !!s && !s.endsWith('@noreply.invalid'));
 
-      let eventId: string | null = null;
-      if (existing) {
-        const { error } = await supabase
+        const upsertRow = {
+          user_id: account.user_id,
+          title: item.summary || '(제목 없음)',
+          start_time: new Date(start).toISOString(),
+          end_time: new Date(end).toISOString(),
+          all_day: !!item.start?.date,
+          location_text: item.location ?? null,
+          attendees,
+          notes: item.description ?? null,
+          source_text: null,
+          source_type: 'manual' as const,
+          source_provider: 'google' as const,
+          calendar_account_id: account.id,
+          external_event_id: externalId,
+          status: 'synced' as const,
+          last_synced_at: new Date().toISOString(),
+          needs_confirmation: false,
+        };
+
+        const { data: existing } = await supabase
           .from('events')
-          .update(upsertRow)
-          .eq('id', existing.id);
-        if (!error) eventId = existing.id;
-      } else {
-        const { data: inserted, error } = await supabase
-          .from('events')
-          .insert(upsertRow)
           .select('id')
-          .single();
-        if (!error && inserted) eventId = inserted.id;
-      }
+          .eq('calendar_account_id', account.id)
+          .eq('external_event_id', externalId)
+          .maybeSingle();
 
-      // Sync the reminder list from Google: replace ours with theirs.
-      if (eventId) {
-        const reminderMinutes: number[] = [];
-        if (item.reminders?.overrides) {
-          for (const r of item.reminders.overrides) {
-            if (typeof r.minutes === 'number') reminderMinutes.push(r.minutes);
-          }
+        let eventId: string | null = null;
+        if (existing) {
+          const { error } = await supabase.from('events').update(upsertRow).eq('id', existing.id);
+          if (!error) eventId = existing.id;
+        } else {
+          const { data: inserted, error } = await supabase
+            .from('events')
+            .insert(upsertRow)
+            .select('id')
+            .single();
+          if (!error && inserted) eventId = inserted.id;
         }
-        // Replace via RPC for atomicity
-        await supabase.rpc('replace_event_reminders', {
-          p_event_id: eventId,
-          p_reminders: reminderMinutes.map((m) => ({ minutes_before: m, method: 'notification' })),
-        });
-        imported++;
+
+        if (eventId) {
+          const reminderMinutes: number[] = [];
+          if (item.reminders?.overrides) {
+            for (const r of item.reminders.overrides) {
+              if (typeof r.minutes === 'number') reminderMinutes.push(r.minutes);
+            }
+          }
+          await supabase.rpc('replace_event_reminders', {
+            p_event_id: eventId,
+            p_reminders: reminderMinutes.map((m) => ({ minutes_before: m, method: 'notification' })),
+          });
+          imported++;
+        }
       }
+      pageToken = body.nextPageToken;
+    } while (pageToken);
+  }
+
+  // Remove google events for this account that vanished upstream (within the window).
+  const { data: locals } = await supabase
+    .from('events')
+    .select('id, external_event_id')
+    .eq('calendar_account_id', account.id)
+    .eq('source_provider', 'google');
+  for (const l of locals ?? []) {
+    if (l.external_event_id && !seen.has(l.external_event_id)) {
+      await supabase.from('events').delete().eq('id', l.id);
+      deleted++;
     }
-    pageToken = body.nextPageToken;
-  } while (pageToken);
+  }
 
   await supabase
     .from('calendar_accounts')

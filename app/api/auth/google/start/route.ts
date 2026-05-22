@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('client_id', clientId);
   url.searchParams.set('redirect_uri', redirect);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', 'https://www.googleapis.com/auth/calendar.events email profile');
+  // Full calendar scope so we can list ALL of the user's calendars (calendarList)
+  // and read every one of them — not just primary. Also covers event read/write.
+  url.searchParams.set('scope', 'https://www.googleapis.com/auth/calendar email profile');
   url.searchParams.set('access_type', 'offline');
   // 'select_account consent' forces both the account chooser and refresh-token re-issue.
   url.searchParams.set('prompt', 'select_account consent');
