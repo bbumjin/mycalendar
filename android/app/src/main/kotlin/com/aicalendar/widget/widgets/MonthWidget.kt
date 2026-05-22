@@ -39,21 +39,26 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
+private val RED = androidx.compose.ui.graphics.Color(0xFFEF4444)
+private val BLUE = androidx.compose.ui.graphics.Color(0xFF3B82F6)
+
 class MonthWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
         val ym = "%04d-%02d".format(today.year, today.monthValue)
-        val daysWith = if (token == null) emptySet()
-        else runCatching { ApiClient.month(token, ym).days_with_events.toSet() }.getOrDefault(emptySet())
+        val resp = if (token == null) null
+        else runCatching { ApiClient.month(token, ym) }.getOrNull()
+        val daysWith = resp?.days_with_events?.toSet() ?: emptySet()
+        val holidays = resp?.holidays?.toSet() ?: emptySet()
 
         provideContent {
             GlanceTheme {
                 if (token == null) {
                     NotConfigured(context)
                 } else {
-                    MonthBody(today, daysWith, context)
+                    MonthBody(today, daysWith, holidays, context)
                 }
             }
         }
@@ -61,7 +66,7 @@ class MonthWidget : GlanceAppWidget() {
 }
 
 @androidx.compose.runtime.Composable
-private fun MonthBody(today: LocalDate, daysWith: Set<String>, context: Context) {
+private fun MonthBody(today: LocalDate, daysWith: Set<String>, holidays: Set<String>, context: Context) {
     val yearMonth = YearMonth.from(today)
     val firstDay = yearMonth.atDay(1)
     val firstWeekday = (firstDay.dayOfWeek.value % 7) // 0=Sun, 1=Mon, …, 6=Sat
@@ -82,20 +87,20 @@ private fun MonthBody(today: LocalDate, daysWith: Set<String>, context: Context)
         )
         Spacer(GlanceModifier.height(8.dp))
 
-        // Day-of-week header
+        // Day-of-week header (Sun red, Sat blue)
         Row(modifier = GlanceModifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEach { d ->
+            listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
+                val c = if (i == 0) RED else if (i == 6) BLUE else MUTED
                 Box(modifier = GlanceModifier.defaultWeight(), contentAlignment = Alignment.Center) {
-                    Text(d, style = TextStyle(color = ColorProvider(MUTED), fontSize = 10.sp))
+                    Text(d, style = TextStyle(color = ColorProvider(c), fontSize = 10.sp))
                 }
             }
         }
         Spacer(GlanceModifier.height(4.dp))
 
-        // Day cells in rows of 7
         var cellIndex = 0
         while (cellIndex < totalCells) {
-            Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp)) {
                 for (col in 0 until 7) {
                     val day = cellIndex - firstWeekday + 1
                     val inMonth = day in 1..daysInMonth
@@ -104,41 +109,40 @@ private fun MonthBody(today: LocalDate, daysWith: Set<String>, context: Context)
                         "%04d-%02d-%02d".format(yearMonth.year, yearMonth.monthValue, day)
                     else ""
                     val hasEvent = inMonth && daysWith.contains(ymd)
+                    val isHoliday = inMonth && holidays.contains(ymd)
 
-                    Box(
-                        modifier = GlanceModifier.defaultWeight().height(28.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    // date number color: today=inverted; holiday/Sun=red; Sat=blue; else fg
+                    val numColor = when {
+                        isToday -> BG
+                        isHoliday || col == 0 -> RED
+                        col == 6 -> BLUE
+                        else -> FG
+                    }
+
+                    // today fills the whole cell with accent
+                    val cellMod = GlanceModifier.defaultWeight().height(30.dp).let {
+                        if (isToday) it.cornerRadius(8.dp).background(ColorProvider(ACCENT)) else it
+                    }
+
+                    Box(modifier = cellMod, contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             if (inMonth) {
-                                if (isToday) {
-                                    Box(
-                                        modifier = GlanceModifier
-                                            .width(20.dp)
-                                            .height(20.dp)
-                                            .cornerRadius(12.dp)
-                                            .background(ColorProvider(ACCENT)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            day.toString(),
-                                            style = TextStyle(color = ColorProvider(BG), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        )
-                                    }
-                                } else {
-                                    Text(
-                                        day.toString(),
-                                        style = TextStyle(color = ColorProvider(FG), fontSize = 11.sp)
+                                Text(
+                                    day.toString(),
+                                    style = TextStyle(
+                                        color = ColorProvider(numColor),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isToday || isHoliday) FontWeight.Bold else FontWeight.Normal
                                     )
-                                }
-                                if (hasEvent && !isToday) {
+                                )
+                                if (hasEvent) {
                                     Spacer(GlanceModifier.height(2.dp))
                                     Box(
                                         modifier = GlanceModifier
                                             .width(4.dp)
                                             .height(4.dp)
                                             .cornerRadius(2.dp)
-                                            .background(ColorProvider(ACCENT))
+                                            .background(ColorProvider(if (isToday) BG else ACCENT))
                                     ) {}
                                 }
                             } else {

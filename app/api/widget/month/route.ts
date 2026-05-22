@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { resolveWidgetUser } from '@/lib/widget-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { DEFAULT_TZ } from '@/lib/time';
+import { getKoreanHolidays } from '@/lib/holidays';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 
@@ -19,21 +20,28 @@ export async function GET(req: NextRequest) {
     : toZonedTime(new Date(), tz);
   const from = startOfMonth(anchor);
   const to = endOfMonth(anchor);
+  const monthStr = formatInTimeZone(anchor, tz, 'yyyy-MM');
 
-  const { data } = await admin
-    .from('events')
-    .select('start_time')
-    .eq('user_id', auth.userId)
-    .gte('start_time', from.toISOString())
-    .lte('start_time', to.toISOString());
+  const [{ data }, holidayData] = await Promise.all([
+    admin
+      .from('events')
+      .select('start_time')
+      .eq('user_id', auth.userId)
+      .gte('start_time', from.toISOString())
+      .lte('start_time', to.toISOString()),
+    getKoreanHolidays(),
+  ]);
 
   const days = new Set<string>();
   for (const e of data ?? []) {
     days.add(formatInTimeZone(new Date(e.start_time as unknown as string), tz, 'yyyy-MM-dd'));
   }
 
+  const holidays = Array.from(holidayData.dates).filter((d) => d.startsWith(monthStr)).sort();
+
   return NextResponse.json({
-    month: formatInTimeZone(anchor, tz, 'yyyy-MM'),
+    month: monthStr,
     days_with_events: Array.from(days).sort(),
+    holidays,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

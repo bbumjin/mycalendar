@@ -25,4 +25,5 @@ data class NextResponse(
 data class MonthResponse(
     val month: String,
     val days_with_events: List<String>,
+    val holidays: List<String> = emptyList(),
 )
