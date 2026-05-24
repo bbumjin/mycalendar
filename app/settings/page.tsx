@@ -5,6 +5,7 @@ import { ProfileForm } from './ProfileForm';
 import { ConnectedCalendars } from './ConnectedCalendars';
 import { SubscriptionCard } from './SubscriptionCard';
 import { IcsSubscriptions } from './IcsSubscriptions';
+import { FontSizeSetting } from './FontSizeSetting';
 import { LogOut } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,12 @@ export default async function SettingsPage() {
   return (
     <AppShell active="settings">
       <PageTitle sub={user.email || ''}>설정</PageTitle>
+
+      <section className="card p-5 mb-4">
+        <h2 className="font-medium mb-1">글자 크기</h2>
+        <p className="text-xs text-[var(--muted)] mb-3">앱 전체 글자/요소 크기를 조절합니다. 즉시 적용돼요.</p>
+        <FontSizeSetting />
+      </section>
 
       <section className="card p-5 mb-4">
         <h2 className="font-medium mb-3">프로필</h2>

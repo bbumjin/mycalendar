@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -24,7 +25,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" className="h-full">
-      <body className="min-h-dvh flex flex-col">{children}</body>
+      <body className="min-h-dvh flex flex-col">
+        {/* Apply persisted font scale before hydration so layout doesn't jump. */}
+        <Script id="apply-font-scale" strategy="beforeInteractive">
+          {"try{var s=parseFloat(localStorage.getItem('fontScale'));if(s>0&&isFinite(s)){document.documentElement.style.fontSize=Math.round(s*16)+'px';}}catch(e){}"}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

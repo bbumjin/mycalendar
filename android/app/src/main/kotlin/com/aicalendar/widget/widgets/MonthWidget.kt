@@ -7,7 +7,6 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -68,24 +67,31 @@ class MonthWidget : GlanceAppWidget() {
     }
 }
 
-/** Parameter passed to [ChangeMonthAction]: delta to add to the stored offset. */
-val MONTH_DELTA_KEY = ActionParameters.Key<Int>("month_delta")
-
-/** Tap on < or > — shifts the displayed month and refreshes the widget. */
-class ChangeMonthAction : ActionCallback {
+/** Tap on < — shift displayed month back by one and refresh the widget. */
+class PrevMonthAction : ActionCallback {
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        val delta = parameters[MONTH_DELTA_KEY] ?: 0
-        val current = TokenStore.getMonthOffset(context)
-        TokenStore.setMonthOffset(context, current + delta)
+        TokenStore.setMonthOffset(context, TokenStore.getMonthOffset(context) - 1)
         MonthWidget().update(context, glanceId)
     }
 }
 
-/** Tap on the month title or "오늘" chip — resets back to the current month. */
+/** Tap on > — shift displayed month forward by one and refresh the widget. */
+class NextMonthAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        TokenStore.setMonthOffset(context, TokenStore.getMonthOffset(context) + 1)
+        MonthWidget().update(context, glanceId)
+    }
+}
+
+/** Tap on the "오늘" chip — reset back to the current month. */
 class ResetMonthAction : ActionCallback {
     override suspend fun onAction(
         context: Context,
@@ -119,38 +125,58 @@ private fun MonthBody(
             .padding(10.dp)
             .clickable(openCalendar())
     ) {
-        // Header: < title > [today-chip if shifted] [spacer] +
+        // Header: <  title  >  …  [today]  +
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ChevronButton("‹", actionRunCallback<ChangeMonthAction>(actionParametersOf(MONTH_DELTA_KEY to -1)))
-            Spacer(GlanceModifier.width(4.dp))
-            // Tapping the title resets to current month.
+            // Prev-month button
+            Box(
+                modifier = GlanceModifier
+                    .height(28.dp)
+                    .width(28.dp)
+                    .cornerRadius(14.dp)
+                    .background(WidgetTheme.surface2)
+                    .clickable(actionRunCallback<PrevMonthAction>()),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("<", style = TextStyle(color = WidgetTheme.fg, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+            }
+            Spacer(GlanceModifier.width(6.dp))
             Text(
                 "${displayed.year}년 ${displayed.monthValue}월",
-                style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold),
-                modifier = GlanceModifier.clickable(actionRunCallback<ResetMonthAction>())
+                style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             )
-            Spacer(GlanceModifier.width(4.dp))
-            ChevronButton("›", actionRunCallback<ChangeMonthAction>(actionParametersOf(MONTH_DELTA_KEY to 1)))
+            Spacer(GlanceModifier.width(6.dp))
+            // Next-month button
+            Box(
+                modifier = GlanceModifier
+                    .height(28.dp)
+                    .width(28.dp)
+                    .cornerRadius(14.dp)
+                    .background(WidgetTheme.surface2)
+                    .clickable(actionRunCallback<NextMonthAction>()),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(">", style = TextStyle(color = WidgetTheme.fg, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+            }
+            Spacer(GlanceModifier.defaultWeight())
             if (offset != 0) {
-                Spacer(GlanceModifier.width(6.dp))
                 Box(
                     modifier = GlanceModifier
-                        .height(22.dp)
-                        .cornerRadius(11.dp)
+                        .height(26.dp)
+                        .cornerRadius(13.dp)
                         .background(WidgetTheme.surface2)
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = 10.dp)
                         .clickable(actionRunCallback<ResetMonthAction>()),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("오늘", style = TextStyle(color = WidgetTheme.muted, fontSize = 10.sp))
+                    Text("오늘", style = TextStyle(color = WidgetTheme.fg, fontSize = 11.sp, fontWeight = FontWeight.Medium))
                 }
+                Spacer(GlanceModifier.width(6.dp))
             }
-            Spacer(GlanceModifier.defaultWeight())
             Box(
                 modifier = GlanceModifier
-                    .height(26.dp)
-                    .width(26.dp)
-                    .cornerRadius(13.dp)
+                    .height(28.dp)
+                    .width(28.dp)
+                    .cornerRadius(14.dp)
                     .background(WidgetTheme.accent)
                     .clickable(openQuickAdd()),
                 contentAlignment = Alignment.Center
@@ -230,21 +256,6 @@ private fun MonthBody(
                 }
             }
         }
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun ChevronButton(label: String, onClick: androidx.glance.action.Action) {
-    Box(
-        modifier = GlanceModifier
-            .height(24.dp)
-            .width(24.dp)
-            .cornerRadius(12.dp)
-            .background(WidgetTheme.surface2)
-            .clickable(onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold))
     }
 }
 
