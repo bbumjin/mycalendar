@@ -6,10 +6,14 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -43,7 +47,9 @@ class MonthWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
-        val ym = "%04d-%02d".format(today.year, today.monthValue)
+        val offset = TokenStore.getMonthOffset(context)
+        val displayed = YearMonth.from(today).plusMonths(offset.toLong())
+        val ym = "%04d-%02d".format(displayed.year, displayed.monthValue)
         val resp = if (token == null) null
         else runCatching { ApiClient.month(token, ym) }.getOrNull()
         val holidays = resp?.holidays?.toSet() ?: emptySet()
@@ -55,23 +61,55 @@ class MonthWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                if (token == null) NotConfigured() else MonthBody(today, holidays, daysWith, byDay)
+                if (token == null) NotConfigured()
+                else MonthBody(today, displayed, offset, holidays, daysWith, byDay)
             }
         }
+    }
+}
+
+/** Parameter passed to [ChangeMonthAction]: delta to add to the stored offset. */
+val MONTH_DELTA_KEY = ActionParameters.Key<Int>("month_delta")
+
+/** Tap on < or > — shifts the displayed month and refreshes the widget. */
+class ChangeMonthAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        val delta = parameters[MONTH_DELTA_KEY] ?: 0
+        val current = TokenStore.getMonthOffset(context)
+        TokenStore.setMonthOffset(context, current + delta)
+        MonthWidget().update(context, glanceId)
+    }
+}
+
+/** Tap on the month title or "오늘" chip — resets back to the current month. */
+class ResetMonthAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        TokenStore.setMonthOffset(context, 0)
+        MonthWidget().update(context, glanceId)
     }
 }
 
 @androidx.compose.runtime.Composable
 private fun MonthBody(
     today: LocalDate,
+    displayed: YearMonth,
+    offset: Int,
     holidays: Set<String>,
     daysWith: Set<String>,
     byDay: Map<String, List<MonthEvent>>
 ) {
-    val yearMonth = YearMonth.from(today)
-    val firstWeekday = (yearMonth.atDay(1).dayOfWeek.value % 7) // 0=Sun … 6=Sat
-    val daysInMonth = yearMonth.lengthOfMonth()
+    val firstWeekday = (displayed.atDay(1).dayOfWeek.value % 7) // 0=Sun … 6=Sat
+    val daysInMonth = displayed.lengthOfMonth()
     val totalCells = ((firstWeekday + daysInMonth + 6) / 7) * 7
+    val sameMonthAsToday = displayed.year == today.year && displayed.monthValue == today.monthValue
 
     Column(
         modifier = GlanceModifier
@@ -81,13 +119,33 @@ private fun MonthBody(
             .padding(10.dp)
             .clickable(openCalendar())
     ) {
-        // Header: title + add button
+        // Header: < title > [today-chip if shifted] [spacer] +
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ChevronButton("‹", actionRunCallback<ChangeMonthAction>(actionParametersOf(MONTH_DELTA_KEY to -1)))
+            Spacer(GlanceModifier.width(4.dp))
+            // Tapping the title resets to current month.
             Text(
-                "${yearMonth.year}년 ${yearMonth.monthValue}월",
+                "${displayed.year}년 ${displayed.monthValue}월",
                 style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold),
-                modifier = GlanceModifier.defaultWeight()
+                modifier = GlanceModifier.clickable(actionRunCallback<ResetMonthAction>())
             )
+            Spacer(GlanceModifier.width(4.dp))
+            ChevronButton("›", actionRunCallback<ChangeMonthAction>(actionParametersOf(MONTH_DELTA_KEY to 1)))
+            if (offset != 0) {
+                Spacer(GlanceModifier.width(6.dp))
+                Box(
+                    modifier = GlanceModifier
+                        .height(22.dp)
+                        .cornerRadius(11.dp)
+                        .background(WidgetTheme.surface2)
+                        .padding(horizontal = 8.dp)
+                        .clickable(actionRunCallback<ResetMonthAction>()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("오늘", style = TextStyle(color = WidgetTheme.muted, fontSize = 10.sp))
+                }
+            }
+            Spacer(GlanceModifier.defaultWeight())
             Box(
                 modifier = GlanceModifier
                     .height(26.dp)
@@ -119,9 +177,9 @@ private fun MonthBody(
                 for (col in 0 until 7) {
                     val day = cellIndex - firstWeekday + 1
                     val inMonth = day in 1..daysInMonth
-                    val isToday = inMonth && day == today.dayOfMonth
+                    val isToday = inMonth && sameMonthAsToday && day == today.dayOfMonth
                     val ymd = if (inMonth)
-                        "%04d-%02d-%02d".format(yearMonth.year, yearMonth.monthValue, day)
+                        "%04d-%02d-%02d".format(displayed.year, displayed.monthValue, day)
                     else ""
                     val isHoliday = inMonth && holidays.contains(ymd)
                     val dayEvents = if (inMonth) byDay[ymd].orEmpty() else emptyList()
@@ -172,6 +230,21 @@ private fun MonthBody(
                 }
             }
         }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun ChevronButton(label: String, onClick: androidx.glance.action.Action) {
+    Box(
+        modifier = GlanceModifier
+            .height(24.dp)
+            .width(24.dp)
+            .cornerRadius(12.dp)
+            .background(WidgetTheme.surface2)
+            .clickable(onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold))
     }
 }
 

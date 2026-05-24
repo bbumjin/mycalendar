@@ -3,7 +3,7 @@ import { AppShell } from '@/components/AppShell';
 import { requireUser } from '@/lib/supabase/server';
 import { DEFAULT_TZ, fmtTime, fmtMonthYear } from '@/lib/time';
 import { getKoreanHolidays } from '@/lib/holidays';
-import { addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, format } from 'date-fns';
+import { addDays, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, format } from 'date-fns';
 import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 import type { EventRow } from '@/lib/types';
 
@@ -43,11 +43,36 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
   }
 
   const todayKey = format(today, 'yyyy-MM-dd');
+  const prevMonthParam = formatInTimeZone(addMonths(monthStart, -1), tz, 'yyyy-MM');
+  const nextMonthParam = formatInTimeZone(addMonths(monthStart, 1), tz, 'yyyy-MM');
+  const isCurrentMonth = formatInTimeZone(monthStart, tz, 'yyyy-MM') === formatInTimeZone(today, tz, 'yyyy-MM');
 
   return (
     <AppShell active="month">
-      <div className="pt-6 pb-4">
+      <div className="pt-6 pb-4 flex items-center gap-2">
+        <Link
+          href={`/calendar?m=${prevMonthParam}`}
+          aria-label="이전 달"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)] transition"
+        >
+          ‹
+        </Link>
         <h1 className="text-2xl font-semibold tracking-tight">{fmtMonthYear(anchor)}</h1>
+        <Link
+          href={`/calendar?m=${nextMonthParam}`}
+          aria-label="다음 달"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)] transition"
+        >
+          ›
+        </Link>
+        {!isCurrentMonth && (
+          <Link
+            href="/calendar"
+            className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs text-[var(--muted)] border border-[var(--border)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)] transition"
+          >
+            오늘
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-7 gap-px bg-[var(--border)] rounded-2xl overflow-hidden text-sm">

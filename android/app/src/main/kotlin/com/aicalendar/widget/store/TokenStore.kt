@@ -2,6 +2,7 @@ package com.aicalendar.widget.store
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore by preferencesDataStore(name = "aicalendar_widget")
 private val TOKEN_KEY = stringPreferencesKey("ics_token")
 private val ALARM_CODES_KEY = stringSetPreferencesKey("alarm_codes")
+private val MONTH_OFFSET_KEY = intPreferencesKey("month_offset")
 
 object TokenStore {
     fun token(context: Context): Flow<String?> =
@@ -33,5 +35,14 @@ object TokenStore {
 
     suspend fun saveAlarmCodes(context: Context, codes: Set<Int>) {
         context.dataStore.edit { it[ALARM_CODES_KEY] = codes.map { c -> c.toString() }.toSet() }
+    }
+
+    // Month widget's displayed-month offset from "current month" (e.g. -1 = last month).
+    // Mutated by in-widget < / > buttons; not used by other widgets.
+    suspend fun getMonthOffset(context: Context): Int =
+        context.dataStore.data.first()[MONTH_OFFSET_KEY] ?: 0
+
+    suspend fun setMonthOffset(context: Context, offset: Int) {
+        context.dataStore.edit { it[MONTH_OFFSET_KEY] = offset }
     }
 }
