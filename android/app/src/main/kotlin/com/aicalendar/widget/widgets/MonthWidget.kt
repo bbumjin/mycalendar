@@ -186,10 +186,10 @@ private fun MonthBody(
         }
         Spacer(GlanceModifier.height(6.dp))
 
-        // Day-of-week header (Sun red, Sat blue)
+        // Day-of-week header (both weekend days red)
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
-                val c = if (i == 0) WidgetTheme.red else if (i == 6) WidgetTheme.blue else WidgetTheme.muted
+                val c = if (i == 0 || i == 6) WidgetTheme.red else WidgetTheme.muted
                 Box(modifier = GlanceModifier.defaultWeight(), contentAlignment = Alignment.Center) {
                     Text(d, style = TextStyle(color = c, fontSize = 9.sp))
                 }
@@ -212,11 +212,12 @@ private fun MonthBody(
 
                     val numColor = when {
                         isToday -> WidgetTheme.bg
-                        isHoliday || col == 0 -> WidgetTheme.red
-                        col == 6 -> WidgetTheme.blue
+                        isHoliday || col == 0 || col == 6 -> WidgetTheme.red
                         else -> WidgetTheme.fg
                     }
-                    val subColor = if (isToday) WidgetTheme.bg else WidgetTheme.muted
+                    // Event time/+N rendered in blue on non-today cells (compensates
+                    // for losing the Saturday-blue treatment that moved to red).
+                    val subColor = if (isToday) WidgetTheme.bg else WidgetTheme.blue
 
                     var cellMod = GlanceModifier.defaultWeight().fillMaxHeight().padding(1.dp)
                     if (isToday) cellMod = cellMod.cornerRadius(6.dp).background(WidgetTheme.accent)

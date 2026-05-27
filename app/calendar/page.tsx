@@ -80,7 +80,7 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
           <div
             key={i}
             className={`bg-[var(--surface-2)] py-2 text-center text-xs ${
-              i === 0 ? 'text-rose-500' : i === 6 ? 'text-blue-500' : 'text-[var(--muted)]'
+              i === 0 || i === 6 ? 'text-rose-500' : 'text-[var(--muted)]'
             }`}
           >
             {d}
@@ -95,14 +95,12 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
           const isHoliday = holidays.dates.has(key);
           const holidayName = holidays.names.get(key);
 
-          // date number color: today=on accent, holiday/Sunday=red, Saturday=blue
+          // date number color: today=on accent, weekend/holiday=red
           const numColor = isToday
             ? 'text-[var(--bg)]'
-            : isHoliday || dow === 0
+            : isHoliday || dow === 0 || dow === 6
               ? 'text-rose-500'
-              : dow === 6
-                ? 'text-blue-500'
-                : 'text-[var(--fg)]';
+              : 'text-[var(--fg)]';
 
           const href = dayEvents.length > 0 ? `/day/${key}` : `/quick-add?date=${key}`;
 
@@ -129,10 +127,10 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
                     <div
                       key={e.id}
                       className={`truncate text-[11px] leading-tight rounded px-1 py-0.5 ${
-                        isToday ? 'bg-[var(--bg)]/15 text-[var(--bg)]' : 'bg-[var(--surface-2)] text-[var(--fg)]'
+                        isToday ? 'bg-[var(--bg)]/15 text-[var(--bg)]' : 'bg-[var(--surface-2)] text-blue-600 dark:text-blue-400'
                       } ${past ? 'line-through opacity-60' : ''}`}
                     >
-                      <span className={isToday ? 'text-[var(--bg)]/70 tabular-nums' : 'text-[var(--muted)] tabular-nums'}>
+                      <span className={isToday ? 'text-[var(--bg)]/70 tabular-nums' : 'text-blue-500/80 dark:text-blue-300/80 tabular-nums'}>
                         {fmtTime(e.start_time)}
                       </span>{' '}
                       {e.title}
@@ -140,7 +138,7 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
                   );
                 })}
                 {dayEvents.length > 3 && (
-                  <div className={`text-[10px] ${isToday ? 'text-[var(--bg)]/70' : 'text-[var(--muted)]'}`}>
+                  <div className={`text-[10px] ${isToday ? 'text-[var(--bg)]/70' : 'text-blue-500 dark:text-blue-400'}`}>
                     +{dayEvents.length - 3}
                   </div>
                 )}
