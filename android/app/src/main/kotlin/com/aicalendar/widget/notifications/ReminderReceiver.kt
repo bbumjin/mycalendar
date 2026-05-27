@@ -7,9 +7,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.aicalendar.widget.BuildConfig
@@ -21,6 +24,16 @@ class ReminderReceiver : BroadcastReceiver() {
         val text = intent.getStringExtra(EXTRA_TEXT) ?: ""
         val notifId = intent.getIntExtra(EXTRA_NOTIF_ID, title.hashCode())
         show(context, title, text, notifId)
+
+        // Hold wake lock while we play through the alarm stream so the
+        // sound actually plays on Samsung where notification volume is
+        // usually muted but alarm volume is loud.
+        val pending = goAsync()
+        val r = ringOnAlarmStream(context)
+        Handler(Looper.getMainLooper()).postDelayed({
+            runCatching { r?.stop() }
+            pending.finish()
+        }, RING_MS)
     }
 
     companion object {
@@ -28,6 +41,8 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
         const val EXTRA_NOTIF_ID = "notifId"
+
+        private const val RING_MS = 6_000L
 
         /** Post the alarm notification now. Used by the receiver and the test button. */
         fun show(context: Context, title: String, text: String, notifId: Int) {
@@ -47,39 +62,55 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .setContentIntent(contentPi)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                builder.setSound(alarmSound())
-            }
             try {
                 NotificationManagerCompat.from(context).notify(notifId, builder.build())
             } catch (_: SecurityException) {
                 // POST_NOTIFICATIONS not granted.
             }
         }
-        // New channel id (channel config is immutable once created). Uses
-        // USAGE_NOTIFICATION — USAGE_ALARM caused Samsung One UI to suppress the
-        // whole notification when the app wasn't foreground.
-        const val CHANNEL_ID = "event_alarms_v2"
 
-        private fun alarmSound(): Uri =
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        /**
+         * Channel v3: SILENT + vibrating. Sound is played explicitly through the
+         * ALARM audio stream in onReceive() so it's audible on Samsung One UI,
+         * where USAGE_NOTIFICATION routes to the notification volume slider
+         * (almost always muted while alarm volume is loud).
+         */
+        const val CHANNEL_ID = "event_alarms_v3"
+
+        /** Play the default alarm sound through the ALARM stream. */
+        fun ringOnAlarmStream(context: Context): Ringtone? {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: return null
+            return runCatching {
+                val r = RingtoneManager.getRingtone(context, uri) ?: return null
+                r.audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    r.isLooping = true
+                }
+                r.play()
+                r
+            }.getOrNull()
+        }
 
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val mgr = context.getSystemService(NotificationManager::class.java)
+                // Drop legacy channels so users don't see orphaned entries
+                // in app notification settings.
+                runCatching { mgr.deleteNotificationChannel("event_alarms_v1") }
+                runCatching { mgr.deleteNotificationChannel("event_alarms_v2") }
                 if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
-                    val attrs = AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
                     val ch = NotificationChannel(
                         CHANNEL_ID,
                         "일정 알림",
                         NotificationManager.IMPORTANCE_HIGH
                     ).apply {
-                        description = "예정된 일정 알림 (소리 + 진동)"
-                        setSound(alarmSound(), attrs)
+                        description = "예정된 일정 알림 (알람 볼륨으로 울림)"
+                        setSound(null, null)
                         enableVibration(true)
                         vibrationPattern = longArrayOf(0, 500, 300, 500)
                     }

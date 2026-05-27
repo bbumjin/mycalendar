@@ -165,9 +165,12 @@ fun SetupScreen() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = {
-                    com.aicalendar.widget.notifications.ReminderReceiver.show(
-                        context, "테스트 알림", "알림과 소리가 정상 작동합니다 🔔", 999_999
-                    )
+                    val test = Intent(context, com.aicalendar.widget.notifications.ReminderReceiver::class.java).apply {
+                        putExtra(com.aicalendar.widget.notifications.ReminderReceiver.EXTRA_TITLE, "테스트 알림")
+                        putExtra(com.aicalendar.widget.notifications.ReminderReceiver.EXTRA_TEXT, "알림과 소리가 정상 작동합니다 🔔")
+                        putExtra(com.aicalendar.widget.notifications.ReminderReceiver.EXTRA_NOTIF_ID, 999_999)
+                    }
+                    context.sendBroadcast(test)
                 },
                 modifier = Modifier.weight(1f)
             ) { Text("테스트 알림") }
