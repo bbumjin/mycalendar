@@ -219,8 +219,17 @@ private fun MonthBody(
                     // for losing the Saturday-blue treatment that moved to red).
                     val subColor = if (isToday) WidgetTheme.bg else WidgetTheme.blue
 
-                    var cellMod = GlanceModifier.defaultWeight().fillMaxHeight().padding(1.dp)
-                    if (isToday) cellMod = cellMod.cornerRadius(6.dp).background(WidgetTheme.accent)
+                    // Always apply a background so RemoteViews emits a fresh
+                    // setBackground each render. Without this, a previous "today"
+                    // cell can keep its accent background on the next day because
+                    // Glance's modifier diff doesn't generate a clear instruction
+                    // when the modifier is simply absent.
+                    var cellMod = GlanceModifier
+                        .defaultWeight()
+                        .fillMaxHeight()
+                        .padding(1.dp)
+                        .cornerRadius(6.dp)
+                        .background(if (isToday) WidgetTheme.accent else WidgetTheme.bg)
                     // Tapping an in-month day opens that day's event list.
                     if (inMonth) cellMod = cellMod.clickable(openDay(ymd))
 
