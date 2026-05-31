@@ -2,7 +2,6 @@ package com.aicalendar.widget.store
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -15,16 +14,17 @@ import java.time.ZoneId
 private val Context.dataStore by preferencesDataStore(name = "aicalendar_widget")
 private val TOKEN_KEY = stringPreferencesKey("ics_token")
 private val ALARM_CODES_KEY = stringSetPreferencesKey("alarm_codes")
-private val MONTH_OFFSET_KEY = intPreferencesKey("month_offset")
-// The KST year-month that month_offset is relative to. If this no longer
-// matches the current month, the stored offset is stale and is ignored so the
-// widget falls back to the current month.
-private val MONTH_ANCHOR_KEY = stringPreferencesKey("month_anchor")
+// Month widget's displayed month, stored as an absolute "yyyy-MM" so the
+// in-widget < / > buttons never have to read+increment (which was unreliable
+// inside the short-lived action context). MONTH_TARGET_DAY is the KST date the
+// target was chosen on: a target is only honoured for the day it was set, so
+// every new day the widget defaults back to the current month.
+private val MONTH_TARGET_KEY = stringPreferencesKey("month_target")
+private val MONTH_TARGET_DAY_KEY = stringPreferencesKey("month_target_day")
 
-private fun currentKstMonth(): String {
-    val d = LocalDate.now(ZoneId.of("Asia/Seoul"))
-    return "%04d-%02d".format(d.year, d.monthValue)
-}
+private fun kstToday(): LocalDate = LocalDate.now(ZoneId.of("Asia/Seoul"))
+private fun ym(d: LocalDate): String = "%04d-%02d".format(d.year, d.monthValue)
+private fun ymd(d: LocalDate): String = "%04d-%02d-%02d".format(d.year, d.monthValue, d.dayOfMonth)
 
 object TokenStore {
     fun token(context: Context): Flow<String?> =
@@ -48,22 +48,27 @@ object TokenStore {
         context.dataStore.edit { it[ALARM_CODES_KEY] = codes.map { c -> c.toString() }.toSet() }
     }
 
-    // Month widget's displayed-month offset from "current month" (e.g. -1 = last month).
-    // Mutated by in-widget < / > buttons; not used by other widgets.
-    // The offset is only honoured while its anchor matches the current KST month;
-    // once the month rolls over the stored offset is stale, so we default back to
-    // the current month (offset 0).
-    suspend fun getMonthOffset(context: Context): Int {
+    // The month the widget should display, as "yyyy-MM". Defaults to the current
+    // KST month unless the user navigated to another month *today*.
+    suspend fun getDisplayedMonth(context: Context): String {
         val prefs = context.dataStore.data.first()
-        val anchor = prefs[MONTH_ANCHOR_KEY]
-        if (anchor != currentKstMonth()) return 0
-        return prefs[MONTH_OFFSET_KEY] ?: 0
+        if (prefs[MONTH_TARGET_DAY_KEY] != ymd(kstToday())) return ym(kstToday())
+        return prefs[MONTH_TARGET_KEY] ?: ym(kstToday())
     }
 
-    suspend fun setMonthOffset(context: Context, offset: Int) {
+    // Pin the displayed month to an absolute "yyyy-MM" (stamped with today's KST date).
+    suspend fun setDisplayedMonth(context: Context, month: String) {
         context.dataStore.edit {
-            it[MONTH_OFFSET_KEY] = offset
-            it[MONTH_ANCHOR_KEY] = currentKstMonth()
+            it[MONTH_TARGET_KEY] = month
+            it[MONTH_TARGET_DAY_KEY] = ymd(kstToday())
+        }
+    }
+
+    // Back to the current month: drop any pinned target.
+    suspend fun resetDisplayedMonth(context: Context) {
+        context.dataStore.edit {
+            it.remove(MONTH_TARGET_KEY)
+            it.remove(MONTH_TARGET_DAY_KEY)
         }
     }
 }

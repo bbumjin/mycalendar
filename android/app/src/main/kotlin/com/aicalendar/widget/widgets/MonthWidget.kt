@@ -7,6 +7,7 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -33,9 +34,14 @@ import androidx.glance.text.TextStyle
 import com.aicalendar.widget.api.ApiClient
 import com.aicalendar.widget.api.MonthEvent
 import com.aicalendar.widget.store.TokenStore
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+
+// Absolute target month ("yyyy-MM") passed straight to the nav action, so the
+// action never has to read DataStore (unreliable in its short-lived context).
+private val TARGET_MONTH = ActionParameters.Key<String>("target_month")
 
 class MonthWidget : GlanceAppWidget() {
 
@@ -46,11 +52,12 @@ class MonthWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
-        val offset = TokenStore.getMonthOffset(context)
-        val displayed = YearMonth.from(today).plusMonths(offset.toLong())
+        val displayed = YearMonth.parse(TokenStore.getDisplayedMonth(context))
         val ym = "%04d-%02d".format(displayed.year, displayed.monthValue)
+        // Time-box the fetch so a slow/unreachable API never blocks the render —
+        // the month label & grid must always paint so navigation feels instant.
         val resp = if (token == null) null
-        else runCatching { ApiClient.month(token, ym) }.getOrNull()
+        else runCatching { withTimeoutOrNull(4000) { ApiClient.month(token, ym) } }.getOrNull()
         val holidays = resp?.holidays?.toSet() ?: emptySet()
         val daysWith = resp?.days_with_events?.toSet() ?: emptySet()
         val byDay = HashMap<String, MutableList<MonthEvent>>()
@@ -61,32 +68,21 @@ class MonthWidget : GlanceAppWidget() {
         provideContent {
             GlanceTheme {
                 if (token == null) NotConfigured()
-                else MonthBody(today, displayed, offset, holidays, daysWith, byDay)
+                else MonthBody(today, displayed, holidays, daysWith, byDay)
             }
         }
     }
 }
 
-/** Tap on < — shift displayed month back by one and refresh the widget. */
-class PrevMonthAction : ActionCallback {
+/** Tap on < or > — pin the displayed month to the target passed in the action. */
+class GoMonthAction : ActionCallback {
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        TokenStore.setMonthOffset(context, TokenStore.getMonthOffset(context) - 1)
-        MonthWidget().update(context, glanceId)
-    }
-}
-
-/** Tap on > — shift displayed month forward by one and refresh the widget. */
-class NextMonthAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
-        TokenStore.setMonthOffset(context, TokenStore.getMonthOffset(context) + 1)
+        val target = parameters[TARGET_MONTH] ?: return
+        TokenStore.setDisplayedMonth(context, target)
         MonthWidget().update(context, glanceId)
     }
 }
@@ -98,7 +94,7 @@ class ResetMonthAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        TokenStore.setMonthOffset(context, 0)
+        TokenStore.resetDisplayedMonth(context)
         MonthWidget().update(context, glanceId)
     }
 }
@@ -107,7 +103,6 @@ class ResetMonthAction : ActionCallback {
 private fun MonthBody(
     today: LocalDate,
     displayed: YearMonth,
-    offset: Int,
     holidays: Set<String>,
     daysWith: Set<String>,
     byDay: Map<String, List<MonthEvent>>
@@ -116,6 +111,8 @@ private fun MonthBody(
     val daysInMonth = displayed.lengthOfMonth()
     val totalCells = ((firstWeekday + daysInMonth + 6) / 7) * 7
     val sameMonthAsToday = displayed.year == today.year && displayed.monthValue == today.monthValue
+    val prevMonth = displayed.minusMonths(1).toString() // "yyyy-MM"
+    val nextMonth = displayed.plusMonths(1).toString()
 
     // NOTE: the whole grid is intentionally NOT clickable. A full-area
     // clickable parent swallows taps on the nested < / > buttons (the parent's
@@ -137,7 +134,7 @@ private fun MonthBody(
                     .width(40.dp)
                     .cornerRadius(20.dp)
                     .background(WidgetTheme.surface2)
-                    .clickable(actionRunCallback<PrevMonthAction>()),
+                    .clickable(actionRunCallback<GoMonthAction>(actionParametersOf(TARGET_MONTH to prevMonth))),
                 contentAlignment = Alignment.Center
             ) {
                 Text("‹", style = TextStyle(color = WidgetTheme.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold))
@@ -158,13 +155,13 @@ private fun MonthBody(
                     .width(40.dp)
                     .cornerRadius(20.dp)
                     .background(WidgetTheme.surface2)
-                    .clickable(actionRunCallback<NextMonthAction>()),
+                    .clickable(actionRunCallback<GoMonthAction>(actionParametersOf(TARGET_MONTH to nextMonth))),
                 contentAlignment = Alignment.Center
             ) {
                 Text("›", style = TextStyle(color = WidgetTheme.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold))
             }
             Spacer(GlanceModifier.defaultWeight())
-            if (offset != 0) {
+            if (!sameMonthAsToday) {
                 Box(
                     modifier = GlanceModifier
                         .height(26.dp)
