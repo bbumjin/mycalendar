@@ -45,8 +45,7 @@ export default async function SettingsPage() {
           initial={{
             display_name: profile?.display_name ?? '',
             timezone: profile?.timezone ?? 'Asia/Seoul',
-            morning_briefing_time: profile?.morning_briefing_time?.slice(0, 5) ?? '08:00',
-            night_briefing_time: profile?.night_briefing_time?.slice(0, 5) ?? '22:00',
+            briefing_time: profile?.morning_briefing_time?.slice(0, 5) ?? '08:00',
           }}
         />
       </section>

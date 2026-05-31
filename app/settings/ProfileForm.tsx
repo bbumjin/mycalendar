@@ -6,8 +6,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 type Initial = {
   display_name: string;
   timezone: string;
-  morning_briefing_time: string;
-  night_briefing_time: string;
+  briefing_time: string;
 };
 
 const TZ_OPTIONS = [
@@ -42,8 +41,7 @@ export function ProfileForm({ initial }: { initial: Initial }) {
       .update({
         display_name: state.display_name || null,
         timezone: state.timezone,
-        morning_briefing_time: state.morning_briefing_time,
-        night_briefing_time: state.night_briefing_time,
+        morning_briefing_time: state.briefing_time,
       })
       .eq('id', user.id);
     if (error) setError(error.message);
@@ -70,14 +68,14 @@ export function ProfileForm({ initial }: { initial: Initial }) {
           {TZ_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="아침 브리핑">
-          <input type="time" className="input" value={state.morning_briefing_time} onChange={(e) => setState({ ...state, morning_briefing_time: e.target.value })} />
-        </Field>
-        <Field label="저녁 브리핑">
-          <input type="time" className="input" value={state.night_briefing_time} onChange={(e) => setState({ ...state, night_briefing_time: e.target.value })} />
-        </Field>
-      </div>
+      <Field label="브리핑 시간">
+        <input
+          type="time"
+          className="input"
+          value={state.briefing_time}
+          onChange={(e) => setState({ ...state, briefing_time: e.target.value })}
+        />
+      </Field>
       <div className="flex items-center gap-3 pt-1">
         <button onClick={save} disabled={saving} className="btn-primary text-sm">
           {saving ? '저장 중…' : '저장'}
