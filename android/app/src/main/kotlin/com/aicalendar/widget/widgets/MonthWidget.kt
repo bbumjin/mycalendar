@@ -117,45 +117,51 @@ private fun MonthBody(
     val totalCells = ((firstWeekday + daysInMonth + 6) / 7) * 7
     val sameMonthAsToday = displayed.year == today.year && displayed.monthValue == today.monthValue
 
+    // NOTE: the whole grid is intentionally NOT clickable. A full-area
+    // clickable parent swallows taps on the nested < / > buttons (the parent's
+    // open-app action fires instead), which is why month nav appeared dead.
+    // Open-app affordances live on the title and the day cells instead.
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(WidgetTheme.bg)
             .cornerRadius(20.dp)
             .padding(10.dp)
-            .clickable(openCalendar())
     ) {
         // Header: <  title  >  …  [today]  +
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Prev-month button
+            // Prev-month button (large tap target for reliable taps)
             Box(
                 modifier = GlanceModifier
-                    .height(28.dp)
-                    .width(28.dp)
-                    .cornerRadius(14.dp)
+                    .height(40.dp)
+                    .width(40.dp)
+                    .cornerRadius(20.dp)
                     .background(WidgetTheme.surface2)
                     .clickable(actionRunCallback<PrevMonthAction>()),
                 contentAlignment = Alignment.Center
             ) {
-                Text("<", style = TextStyle(color = WidgetTheme.fg, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                Text("‹", style = TextStyle(color = WidgetTheme.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold))
             }
-            Spacer(GlanceModifier.width(6.dp))
+            Spacer(GlanceModifier.width(4.dp))
             Text(
                 "${displayed.year}년 ${displayed.monthValue}월",
+                modifier = GlanceModifier
+                    .clickable(openCalendar())
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
                 style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             )
-            Spacer(GlanceModifier.width(6.dp))
-            // Next-month button
+            Spacer(GlanceModifier.width(4.dp))
+            // Next-month button (large tap target for reliable taps)
             Box(
                 modifier = GlanceModifier
-                    .height(28.dp)
-                    .width(28.dp)
-                    .cornerRadius(14.dp)
+                    .height(40.dp)
+                    .width(40.dp)
+                    .cornerRadius(20.dp)
                     .background(WidgetTheme.surface2)
                     .clickable(actionRunCallback<NextMonthAction>()),
                 contentAlignment = Alignment.Center
             ) {
-                Text(">", style = TextStyle(color = WidgetTheme.fg, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                Text("›", style = TextStyle(color = WidgetTheme.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold))
             }
             Spacer(GlanceModifier.defaultWeight())
             if (offset != 0) {
