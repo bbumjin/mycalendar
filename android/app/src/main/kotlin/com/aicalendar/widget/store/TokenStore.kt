@@ -5,9 +5,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.aicalendar.widget.api.MonthResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -25,6 +27,11 @@ private val MONTH_TARGET_DAY_KEY = stringPreferencesKey("month_target_day")
 // month grid. Like the month target, honoured only for the KST day it was set.
 private val SELECTED_DAY_KEY = stringPreferencesKey("selected_day")
 private val SELECTED_DAY_STAMP_KEY = stringPreferencesKey("selected_day_stamp")
+
+// Per-month cache of the month API response (JSON), keyed "month_cache_yyyy-MM".
+// Lets the widget paint instantly without waiting on the network.
+private val monthCacheJson = Json { ignoreUnknownKeys = true }
+private fun monthCacheKey(month: String) = stringPreferencesKey("month_cache_$month")
 
 private fun kstToday(): LocalDate = LocalDate.now(ZoneId.of("Asia/Seoul"))
 private fun ym(d: LocalDate): String = "%04d-%02d".format(d.year, d.monthValue)
@@ -95,5 +102,20 @@ object TokenStore {
             it.remove(SELECTED_DAY_KEY)
             it.remove(SELECTED_DAY_STAMP_KEY)
         }
+    }
+
+    // --- Month data cache (instant render, network refresh in the background) ---
+
+    suspend fun hasMonthCache(context: Context, month: String): Boolean =
+        context.dataStore.data.first()[monthCacheKey(month)] != null
+
+    suspend fun getMonthCache(context: Context, month: String): MonthResponse? {
+        val raw = context.dataStore.data.first()[monthCacheKey(month)] ?: return null
+        return runCatching { monthCacheJson.decodeFromString(MonthResponse.serializer(), raw) }.getOrNull()
+    }
+
+    suspend fun putMonthCache(context: Context, month: String, resp: MonthResponse) {
+        val raw = monthCacheJson.encodeToString(MonthResponse.serializer(), resp)
+        context.dataStore.edit { it[monthCacheKey(month)] = raw }
     }
 }

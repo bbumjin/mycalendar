@@ -58,10 +58,14 @@ class MonthWidget : GlanceAppWidget() {
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
         val displayed = YearMonth.parse(TokenStore.getDisplayedMonth(context))
         val ym = "%04d-%02d".format(displayed.year, displayed.monthValue)
-        // Time-box the fetch so a slow/unreachable API never blocks the render —
-        // the month label & grid must always paint so navigation feels instant.
-        val resp = if (token == null) null
-        else runCatching { withTimeoutOrNull(4000) { ApiClient.month(token, ym) } }.getOrNull()
+        // Render from the local cache so taps never wait on the network. The only
+        // blocking fetch is the very first time a month is seen (no cache yet);
+        // afterwards the tap actions refresh the cache in the background.
+        var resp = TokenStore.getMonthCache(context, ym)
+        if (resp == null && token != null) {
+            resp = runCatching { withTimeoutOrNull(8000) { ApiClient.month(token, ym) } }.getOrNull()
+            if (resp != null) TokenStore.putMonthCache(context, ym, resp)
+        }
         val holidays = resp?.holidays?.toSet() ?: emptySet()
         val daysWith = resp?.days_with_events?.toSet() ?: emptySet()
         val byDay = HashMap<String, MutableList<MonthEvent>>()
@@ -85,6 +89,17 @@ class MonthWidget : GlanceAppWidget() {
     }
 }
 
+// Fetch a month's data in the background and repaint. Callers invoke this only
+// when a cache already existed (so the tap rendered instantly) — otherwise
+// provideGlance's first-visit fetch already covered it and refreshing here would
+// double-hit the network.
+private suspend fun refreshMonth(context: Context, glanceId: GlanceId, month: String) {
+    val token = TokenStore.get(context) ?: return
+    val fresh = runCatching { withTimeoutOrNull(8000) { ApiClient.month(token, month) } }.getOrNull() ?: return
+    TokenStore.putMonthCache(context, month, fresh)
+    MonthWidget().update(context, glanceId)
+}
+
 /** Tap on < or > — pin the displayed month to the target passed in the action. */
 class GoMonthAction : ActionCallback {
     override suspend fun onAction(
@@ -93,8 +108,10 @@ class GoMonthAction : ActionCallback {
         parameters: ActionParameters
     ) {
         val target = parameters[TARGET_MONTH] ?: return
+        val hadCache = TokenStore.hasMonthCache(context, target)
         TokenStore.setDisplayedMonth(context, target)
-        MonthWidget().update(context, glanceId)
+        MonthWidget().update(context, glanceId)            // instant from cache (or first-visit fetch)
+        if (hadCache) refreshMonth(context, glanceId, target)
     }
 }
 
@@ -106,7 +123,10 @@ class ResetMonthAction : ActionCallback {
         parameters: ActionParameters
     ) {
         TokenStore.resetDisplayedMonth(context)
+        val month = TokenStore.getDisplayedMonth(context)
+        val hadCache = TokenStore.hasMonthCache(context, month)
         MonthWidget().update(context, glanceId)
+        if (hadCache) refreshMonth(context, glanceId, month)
     }
 }
 
@@ -118,8 +138,11 @@ class OpenDayAction : ActionCallback {
         parameters: ActionParameters
     ) {
         val day = parameters[TARGET_DAY] ?: return
+        val month = day.take(7) // "yyyy-MM"
+        val hadCache = TokenStore.hasMonthCache(context, month)
         TokenStore.setSelectedDay(context, day)
         MonthWidget().update(context, glanceId)
+        if (hadCache) refreshMonth(context, glanceId, month)
     }
 }
 
