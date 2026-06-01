@@ -24,9 +24,12 @@ export default async function MonthPage(props: { searchParams: Promise<{ m?: str
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
   const [{ data }, holidays] = await Promise.all([
+    // The month grid only needs these fields and no reminders, so query the base
+    // table directly — avoids the events_with_reminders per-row subquery and the
+    // *-column payload.
     supabase
-      .from('events_with_reminders')
-      .select('*')
+      .from('events')
+      .select('id, title, start_time, end_time')
       .eq('user_id', user.id)
       .gte('start_time', gridStart.toISOString())
       .lte('start_time', addDays(gridEnd, 1).toISOString())

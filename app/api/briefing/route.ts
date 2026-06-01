@@ -11,20 +11,15 @@ export async function GET() {
   const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('timezone')
-    .eq('id', user.id)
-    .single();
-  const tz = profile?.timezone || DEFAULT_TZ;
-
+  // The window boundary uses the app's default zone (the briefing UI also groups
+  // by it), so we no longer need a serial per-request profile lookup. Query the
+  // base table with only the columns the briefing list renders.
   const now = new Date();
-  const nowZ = toZonedTime(now, tz);
-  const rangeEnd = endOfDay(addDays(nowZ, 3));
+  const rangeEnd = endOfDay(addDays(toZonedTime(now, DEFAULT_TZ), 3));
 
   const { data: events } = await supabase
-    .from('events_with_reminders')
-    .select('*')
+    .from('events')
+    .select('id, title, start_time, location_text')
     .eq('user_id', user.id)
     .gte('start_time', now.toISOString())
     .lte('start_time', rangeEnd.toISOString())

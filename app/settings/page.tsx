@@ -14,17 +14,20 @@ export default async function SettingsPage() {
   const { supabase, user } = await requireUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  // Independent queries — run them together instead of serially.
+  const [{ data: profile }, { data: accountsRaw }, hdrs] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase
+      .from('calendar_accounts')
+      .select('id, provider, provider_account_email, selected_calendar_name, is_default, token_expires_at, last_synced_at, last_sync_error')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true }),
+    headers(),
+  ]);
 
-  const hdrs = await headers();
   const host = hdrs.get('x-forwarded-host') || hdrs.get('host') || 'localhost:3000';
   const proto = hdrs.get('x-forwarded-proto') || 'https';
   const origin = `${proto}://${host}`;
-  const { data: accountsRaw } = await supabase
-    .from('calendar_accounts')
-    .select('id, provider, provider_account_email, selected_calendar_name, is_default, token_expires_at, last_synced_at, last_sync_error')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true });
 
   const googleEnabled = !!process.env.GOOGLE_CLIENT_ID;
   const microsoftEnabled = !!process.env.MICROSOFT_CLIENT_ID;
