@@ -31,9 +31,12 @@ export async function proxy(req: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() still refreshes an expiring session (it calls getSession()
+  // internally, which writes refreshed cookies via setAll above), but verifies
+  // the JWT locally against the cached JWKS instead of a network round-trip to
+  // the Auth server on every request. Only presence is needed for gating.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname } = req.nextUrl;
   const isPublic =
