@@ -23,10 +23,12 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
 
   const [{ data }, holidays] = await Promise.all([
     // EventCard needs reminders (count), so keep the view but select only the
-    // columns the card renders instead of every event column.
+    // columns the card renders instead of every event column. (NB: the view was
+    // created `select e.*` in 0001, so its column set predates source_provider —
+    // selecting that here 400s; EventCard treats a missing provider as none.)
     supabase
       .from('events_with_reminders')
-      .select('id, title, start_time, end_time, location_text, source_provider, reminders')
+      .select('id, title, start_time, end_time, location_text, reminders')
       .eq('user_id', user.id)
       .gte('start_time', dayStartUtc.toISOString())
       .lte('start_time', dayEndUtc.toISOString())

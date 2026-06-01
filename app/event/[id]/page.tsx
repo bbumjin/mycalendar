@@ -12,9 +12,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   // Fetch on the server so the form paints from the initial HTML — no client
   // fetch-on-mount round trip or "불러오는 중…" spinner.
+  // NB: events_with_reminders was created `select e.*` in 0001, so its columns
+  // predate source_provider (0003) — selecting it 400s. Omit it; the provider
+  // label is simply absent (as it was before this query existed).
   const { data } = await supabase
     .from('events_with_reminders')
-    .select('id, title, start_time, end_time, location_text, attendees, notes, reminders, source_provider, status')
+    .select('id, title, start_time, end_time, location_text, attendees, notes, reminders, status')
     .eq('id', id)
     .eq('user_id', user.id)
     .single();
