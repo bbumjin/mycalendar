@@ -1,64 +1,51 @@
-'use client';
-
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AppShell, PageTitle } from '@/components/AppShell';
+import { requireUser } from '@/lib/supabase/server';
 import { fmtTime, DEFAULT_TZ } from '@/lib/time';
 import { MapPin } from 'lucide-react';
-import { formatInTimeZone } from 'date-fns-tz';
+import { addDays, endOfDay } from 'date-fns';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { ko } from 'date-fns/locale';
 import type { EventRow } from '@/lib/types';
 
-export default function BriefingPage() {
-  const [events, setEvents] = useState<EventRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/briefing');
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || '불러오지 못했습니다.');
-        setEvents(json.events ?? []);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : '불러오지 못했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+export default async function BriefingPage() {
+  const { supabase, user } = await requireUser();
+  if (!user) return null;
 
-  const groups = useMemo(() => {
-    const map = new Map<string, EventRow[]>();
-    for (const e of events) {
-      const key = formatInTimeZone(new Date(e.start_time), DEFAULT_TZ, 'yyyy-MM-dd');
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(e);
-    }
-    return Array.from(map.entries());
-  }, [events]);
+  // Render on the server (no client fetch-on-mount round trip / spinner).
+  const now = new Date();
+  const rangeEnd = endOfDay(addDays(toZonedTime(now, DEFAULT_TZ), 3));
+  const { data } = await supabase
+    .from('events')
+    .select('id, title, start_time, location_text')
+    .eq('user_id', user.id)
+    .gte('start_time', now.toISOString())
+    .lte('start_time', rangeEnd.toISOString())
+    .order('start_time', { ascending: true });
+  const events = (data as EventRow[] | null) ?? [];
 
-  const todayKey = formatInTimeZone(new Date(), DEFAULT_TZ, 'yyyy-MM-dd');
+  const groups = new Map<string, EventRow[]>();
+  for (const e of events) {
+    const key = formatInTimeZone(new Date(e.start_time), DEFAULT_TZ, 'yyyy-MM-dd');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(e);
+  }
+  const todayKey = formatInTimeZone(now, DEFAULT_TZ, 'yyyy-MM-dd');
 
   return (
     <AppShell active="briefing">
       <PageTitle sub="지금부터 3일간의 일정">브리핑</PageTitle>
 
-      {loading && <p className="text-[var(--muted)]">불러오는 중…</p>}
-      {error && <p className="text-rose-600 text-sm">{error}</p>}
-
-      {!loading && !error && events.length === 0 && (
+      {events.length === 0 ? (
         <div className="card p-5 text-[var(--muted)] text-sm">예정된 일정이 없습니다.</div>
-      )}
-
-      {!loading && groups.length > 0 && (
+      ) : (
         <div className="space-y-5">
-          {groups.map(([dateKey, list]) => {
+          {Array.from(groups.entries()).map(([dateKey, list]) => {
             const date = new Date(dateKey + 'T12:00:00');
             const dayDiff = daysFromTodayKey(todayKey, dateKey);
-            const relLabel =
-              dayDiff === 0 ? '오늘' : dayDiff === 1 ? '내일' : dayDiff === 2 ? '모레' : null;
+            const relLabel = dayDiff === 0 ? '오늘' : dayDiff === 1 ? '내일' : dayDiff === 2 ? '모레' : null;
             return (
               <section key={dateKey}>
                 <h2 className="text-xs uppercase tracking-wide text-[var(--muted)] mb-2 flex items-center gap-2">
