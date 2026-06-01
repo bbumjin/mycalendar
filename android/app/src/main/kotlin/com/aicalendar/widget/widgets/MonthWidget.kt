@@ -15,6 +15,8 @@ import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -42,6 +44,8 @@ import java.time.ZoneId
 // Absolute target month ("yyyy-MM") passed straight to the nav action, so the
 // action never has to read DataStore (unreliable in its short-lived context).
 private val TARGET_MONTH = ActionParameters.Key<String>("target_month")
+// The day ("yyyy-MM-dd") a tapped cell hands to the day-detail action.
+private val TARGET_DAY = ActionParameters.Key<String>("target_day")
 
 class MonthWidget : GlanceAppWidget() {
 
@@ -65,10 +69,17 @@ class MonthWidget : GlanceAppWidget() {
             byDay.getOrPut(TimeFmt.yyyymmdd(ev.start_time)) { mutableListOf() }.add(ev)
         }
 
+        // A selected day is only meaningful while it belongs to the month we just
+        // fetched (cells are only tappable within the displayed month).
+        val selectedDay = TokenStore.getSelectedDay(context)?.takeIf { it.startsWith(ym) }
+
         provideContent {
             GlanceTheme {
-                if (token == null) NotConfigured()
-                else MonthBody(today, displayed, holidays, daysWith, byDay)
+                when {
+                    token == null -> NotConfigured()
+                    selectedDay != null -> DayBody(selectedDay, byDay[selectedDay].orEmpty())
+                    else -> MonthBody(today, displayed, holidays, daysWith, byDay)
+                }
             }
         }
     }
@@ -95,6 +106,31 @@ class ResetMonthAction : ActionCallback {
         parameters: ActionParameters
     ) {
         TokenStore.resetDisplayedMonth(context)
+        MonthWidget().update(context, glanceId)
+    }
+}
+
+/** Tap a day cell — show that day's event list inside the widget. */
+class OpenDayAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        val day = parameters[TARGET_DAY] ?: return
+        TokenStore.setSelectedDay(context, day)
+        MonthWidget().update(context, glanceId)
+    }
+}
+
+/** Tap the back chip in the day view — return to the month grid. */
+class BackToMonthAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        TokenStore.clearSelectedDay(context)
         MonthWidget().update(context, glanceId)
     }
 }
@@ -233,8 +269,11 @@ private fun MonthBody(
                         .padding(1.dp)
                         .cornerRadius(6.dp)
                         .background(if (isToday) WidgetTheme.accent else WidgetTheme.bg)
-                    // Tapping an in-month day opens that day's event list.
-                    if (inMonth) cellMod = cellMod.clickable(openDay(ymd))
+                    // Tapping an in-month day shows that day's event list inside
+                    // the widget (no jump out to the web app).
+                    if (inMonth) cellMod = cellMod.clickable(
+                        actionRunCallback<OpenDayAction>(actionParametersOf(TARGET_DAY to ymd))
+                    )
 
                     Box(modifier = cellMod) {
                         if (inMonth) {
@@ -266,6 +305,65 @@ private fun MonthBody(
                         }
                     }
                     cellIndex++
+                }
+            }
+        }
+    }
+}
+
+/** In-widget detail view for a single day: a back chip + the day's event list. */
+@androidx.compose.runtime.Composable
+private fun DayBody(day: String, events: List<MonthEvent>) {
+    val date = runCatching { LocalDate.parse(day) }.getOrNull()
+    val dow = date?.let { listOf("월", "화", "수", "목", "금", "토", "일")[it.dayOfWeek.value - 1] }
+    val title = if (date != null) "${date.monthValue}월 ${date.dayOfMonth}일 ($dow)" else day
+
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(WidgetTheme.bg)
+            .cornerRadius(20.dp)
+            .padding(10.dp)
+    ) {
+        // Header: [‹ 달력]   title
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = GlanceModifier
+                    .height(36.dp)
+                    .cornerRadius(18.dp)
+                    .background(WidgetTheme.surface2)
+                    .padding(horizontal = 12.dp)
+                    .clickable(actionRunCallback<BackToMonthAction>()),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("‹ 달력", style = TextStyle(color = WidgetTheme.fg, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+            }
+            Spacer(GlanceModifier.width(10.dp))
+            Text(title, style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold))
+        }
+        Spacer(GlanceModifier.height(8.dp))
+
+        if (events.isEmpty()) {
+            Text("일정이 없습니다.", style = TextStyle(color = WidgetTheme.muted, fontSize = 13.sp))
+        } else {
+            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                items(events) { e ->
+                    Row(
+                        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (e.all_day) "종일" else TimeFmt.short(e.start_time),
+                            style = TextStyle(color = WidgetTheme.blue, fontSize = 12.sp),
+                            modifier = GlanceModifier.width(48.dp)
+                        )
+                        Spacer(GlanceModifier.width(8.dp))
+                        Text(
+                            e.title,
+                            maxLines = 2,
+                            style = TextStyle(color = WidgetTheme.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        )
+                    }
                 }
             }
         }

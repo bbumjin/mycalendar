@@ -21,6 +21,10 @@ private val ALARM_CODES_KEY = stringSetPreferencesKey("alarm_codes")
 // every new day the widget defaults back to the current month.
 private val MONTH_TARGET_KEY = stringPreferencesKey("month_target")
 private val MONTH_TARGET_DAY_KEY = stringPreferencesKey("month_target_day")
+// Day the in-widget detail view is showing ("yyyy-MM-dd"), or absent for the
+// month grid. Like the month target, honoured only for the KST day it was set.
+private val SELECTED_DAY_KEY = stringPreferencesKey("selected_day")
+private val SELECTED_DAY_STAMP_KEY = stringPreferencesKey("selected_day_stamp")
 
 private fun kstToday(): LocalDate = LocalDate.now(ZoneId.of("Asia/Seoul"))
 private fun ym(d: LocalDate): String = "%04d-%02d".format(d.year, d.monthValue)
@@ -69,6 +73,27 @@ object TokenStore {
         context.dataStore.edit {
             it.remove(MONTH_TARGET_KEY)
             it.remove(MONTH_TARGET_DAY_KEY)
+        }
+    }
+
+    // The day whose detail list the month widget is showing, or null for the grid.
+    suspend fun getSelectedDay(context: Context): String? {
+        val prefs = context.dataStore.data.first()
+        if (prefs[SELECTED_DAY_STAMP_KEY] != ymd(kstToday())) return null
+        return prefs[SELECTED_DAY_KEY]
+    }
+
+    suspend fun setSelectedDay(context: Context, day: String) {
+        context.dataStore.edit {
+            it[SELECTED_DAY_KEY] = day
+            it[SELECTED_DAY_STAMP_KEY] = ymd(kstToday())
+        }
+    }
+
+    suspend fun clearSelectedDay(context: Context) {
+        context.dataStore.edit {
+            it.remove(SELECTED_DAY_KEY)
+            it.remove(SELECTED_DAY_STAMP_KEY)
         }
     }
 }
