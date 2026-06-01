@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const [{ data }, holidayData] = await Promise.all([
     admin
       .from('events')
-      .select('title, start_time, all_day')
+      .select('id, title, start_time, all_day')
       .eq('user_id', auth.userId)
       .gte('start_time', from.toISOString())
       .lte('start_time', to.toISOString())
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const events = (data ?? []).map((e) => {
     const startIso = e.start_time as unknown as string;
     days.add(formatInTimeZone(new Date(startIso), tz, 'yyyy-MM-dd'));
-    return { start_time: startIso, title: (e.title as string) ?? '', all_day: !!e.all_day };
+    return { id: e.id as string, start_time: startIso, title: (e.title as string) ?? '', all_day: !!e.all_day };
   });
 
   const holidays = Array.from(holidayData.dates).filter((d) => d.startsWith(monthStr)).sort();

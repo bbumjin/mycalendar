@@ -348,10 +348,11 @@ private fun DayBody(day: String, events: List<MonthEvent>) {
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                 items(events) { e ->
-                    Row(
-                        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    // Tapping a row opens its web detail (when the id is known).
+                    var rowMod = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).cornerRadius(8.dp)
+                    val id = e.id
+                    if (id != null) rowMod = rowMod.clickable(openEvent(id))
+                    Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (e.all_day) "종일" else TimeFmt.short(e.start_time),
                             style = TextStyle(color = WidgetTheme.blue, fontSize = 12.sp),
@@ -361,8 +362,12 @@ private fun DayBody(day: String, events: List<MonthEvent>) {
                         Text(
                             e.title,
                             maxLines = 2,
-                            style = TextStyle(color = WidgetTheme.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            style = TextStyle(color = WidgetTheme.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                            modifier = GlanceModifier.defaultWeight()
                         )
+                        if (id != null) {
+                            Text("›", style = TextStyle(color = WidgetTheme.muted, fontSize = 16.sp))
+                        }
                     }
                 }
             }

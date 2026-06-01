@@ -26,6 +26,7 @@ data class MonthEvent(
     val start_time: String,
     val title: String,
     val all_day: Boolean = false,
+    val id: String? = null,
 )
 
 @Serializable
