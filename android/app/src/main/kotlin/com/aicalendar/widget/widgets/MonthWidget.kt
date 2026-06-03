@@ -15,8 +15,6 @@ import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -369,8 +367,13 @@ private fun DayBody(day: String, events: List<MonthEvent>) {
         if (events.isEmpty()) {
             Text("일정이 없습니다.", style = TextStyle(color = WidgetTheme.muted, fontSize = 13.sp))
         } else {
-            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(events) { e ->
+            // A plain Column, NOT LazyColumn: a Glance LazyColumn builds a
+            // RemoteViews collection whose click template swallowed taps on the
+            // sibling "‹ 달력" back chip (so back appeared dead). Days rarely have
+            // many events; cap the list and note the overflow.
+            val shown = events.take(12)
+            Column(modifier = GlanceModifier.fillMaxSize()) {
+                shown.forEach { e ->
                     // Tapping a row opens its web detail (when the id is known).
                     var rowMod = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).cornerRadius(8.dp)
                     val id = e.id
@@ -392,6 +395,13 @@ private fun DayBody(day: String, events: List<MonthEvent>) {
                             Text("›", style = TextStyle(color = WidgetTheme.muted, fontSize = 16.sp))
                         }
                     }
+                }
+                if (events.size > shown.size) {
+                    Text(
+                        "+${events.size - shown.size}개 더",
+                        style = TextStyle(color = WidgetTheme.muted, fontSize = 11.sp),
+                        modifier = GlanceModifier.padding(top = 4.dp)
+                    )
                 }
             }
         }
