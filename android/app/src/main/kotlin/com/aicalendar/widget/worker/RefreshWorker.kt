@@ -9,7 +9,9 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.aicalendar.widget.api.ApiClient
 import com.aicalendar.widget.notifications.ReminderScheduler
+import com.aicalendar.widget.store.TokenStore
 import com.aicalendar.widget.widgets.MonthWidget
 import com.aicalendar.widget.widgets.NextEventWidget
 import com.aicalendar.widget.widgets.TodayWidget
@@ -17,7 +19,18 @@ import java.util.concurrent.TimeUnit
 
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        // updateAll() re-runs each widget's provideGlance which re-fetches from API
+        // The month widget renders only from its local cache (so taps never block
+        // on the network), so the periodic refresh must do the fetching here in
+        // the background and write the cache before re-rendering.
+        val token = TokenStore.get(applicationContext)
+        if (token != null) {
+            val ym = TokenStore.getDisplayedMonth(applicationContext)
+            runCatching { ApiClient.month(token, ym) }.getOrNull()?.let {
+                TokenStore.putMonthCache(applicationContext, ym, it)
+            }
+        }
+        // updateAll() re-runs each widget's provideGlance. Today/Next fetch there;
+        // Month now renders from the cache we just refreshed.
         TodayWidget().updateAll(applicationContext)
         NextEventWidget().updateAll(applicationContext)
         MonthWidget().updateAll(applicationContext)

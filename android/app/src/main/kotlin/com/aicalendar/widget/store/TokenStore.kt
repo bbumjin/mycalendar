@@ -106,9 +106,6 @@ object TokenStore {
 
     // --- Month data cache (instant render, network refresh in the background) ---
 
-    suspend fun hasMonthCache(context: Context, month: String): Boolean =
-        context.dataStore.data.first()[monthCacheKey(month)] != null
-
     suspend fun getMonthCache(context: Context, month: String): MonthResponse? {
         val raw = context.dataStore.data.first()[monthCacheKey(month)] ?: return null
         return runCatching { monthCacheJson.decodeFromString(MonthResponse.serializer(), raw) }.getOrNull()
