@@ -1,6 +1,8 @@
 package com.aicalendar.widget.widgets
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -16,6 +18,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -39,6 +42,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
+private const val TAG = "AICalWidget"
+
 // Absolute target month ("yyyy-MM") passed straight to the nav action, so the
 // action never has to read DataStore (unreliable in its short-lived context).
 private val TARGET_MONTH = ActionParameters.Key<String>("target_month")
@@ -52,6 +57,7 @@ class MonthWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Single
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val t0 = SystemClock.elapsedRealtime()
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
         val displayed = YearMonth.parse(TokenStore.getDisplayedMonth(context))
@@ -60,6 +66,7 @@ class MonthWidget : GlanceAppWidget() {
         // blocking fetch is the very first time a month is seen (no cache yet);
         // afterwards the tap actions refresh the cache in the background.
         var resp = TokenStore.getMonthCache(context, ym)
+        val cacheHit = resp != null
         if (resp == null && token != null) {
             resp = runCatching { withTimeoutOrNull(8000) { ApiClient.month(token, ym) } }.getOrNull()
             if (resp != null) TokenStore.putMonthCache(context, ym, resp)
@@ -74,6 +81,7 @@ class MonthWidget : GlanceAppWidget() {
         // A selected day is only meaningful while it belongs to the month we just
         // fetched (cells are only tappable within the displayed month).
         val selectedDay = TokenStore.getSelectedDay(context)?.takeIf { it.startsWith(ym) }
+        Log.d(TAG, "provideGlance id=$id ym=$ym cacheHit=$cacheHit selectedDay=$selectedDay dataMs=${SystemClock.elapsedRealtime() - t0}")
 
         provideContent {
             GlanceTheme {
@@ -97,51 +105,47 @@ class MonthWidget : GlanceAppWidget() {
 
 /** Tap on < or > — pin the displayed month to the target passed in the action. */
 class GoMonthAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val target = parameters[TARGET_MONTH] ?: return
+        val t = SystemClock.elapsedRealtime()
+        Log.d(TAG, "GoMonthAction fired target=$target")
         TokenStore.setDisplayedMonth(context, target)
-        MonthWidget().update(context, glanceId)
+        MonthWidget().updateAll(context)
+        Log.d(TAG, "GoMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
 /** Tap on the "오늘" chip — reset back to the current month. */
 class ResetMonthAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val t = SystemClock.elapsedRealtime()
+        Log.d(TAG, "ResetMonthAction fired")
         TokenStore.resetDisplayedMonth(context)
-        MonthWidget().update(context, glanceId)
+        MonthWidget().updateAll(context)
+        Log.d(TAG, "ResetMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
 /** Tap a day cell — show that day's event list inside the widget (cached data). */
 class OpenDayAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val day = parameters[TARGET_DAY] ?: return
+        val t = SystemClock.elapsedRealtime()
+        Log.d(TAG, "OpenDayAction fired day=$day")
         TokenStore.setSelectedDay(context, day)
-        MonthWidget().update(context, glanceId)
+        MonthWidget().updateAll(context)
+        Log.d(TAG, "OpenDayAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
 /** Tap the back chip in the day view — return to the month grid. */
 class BackToMonthAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val t = SystemClock.elapsedRealtime()
+        Log.d(TAG, "BackToMonthAction fired")
         TokenStore.clearSelectedDay(context)
-        MonthWidget().update(context, glanceId)
+        MonthWidget().updateAll(context)
+        Log.d(TAG, "BackToMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
