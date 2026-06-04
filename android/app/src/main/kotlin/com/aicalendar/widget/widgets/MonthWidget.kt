@@ -369,9 +369,11 @@ private fun DayBody(day: String, events: List<MonthEvent>) {
         } else {
             // A plain Column, NOT LazyColumn: a Glance LazyColumn builds a
             // RemoteViews collection whose click template swallowed taps on the
-            // sibling "‹ 달력" back chip (so back appeared dead). Days rarely have
-            // many events; cap the list and note the overflow.
-            val shown = events.take(12)
+            // sibling "‹ 달력" back chip (so back appeared dead). But a Glance
+            // Column/Row allows at most 10 children, and exceeding that makes the
+            // whole render throw (the day tap then looked unresponsive). Cap at 9
+            // rows + an optional overflow line = 10 children max.
+            val shown = events.take(9)
             Column(modifier = GlanceModifier.fillMaxSize()) {
                 shown.forEach { e ->
                     // Tapping a row opens its web detail (when the id is known).
