@@ -1,8 +1,6 @@
 package com.aicalendar.widget.widgets
 
 import android.content.Context
-import android.os.SystemClock
-import android.util.Log
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -42,13 +40,9 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-private const val TAG = "AICalWidget"
-
 // Absolute target month ("yyyy-MM") passed straight to the nav action, so the
 // action never has to read DataStore (unreliable in its short-lived context).
 private val TARGET_MONTH = ActionParameters.Key<String>("target_month")
-// The day ("yyyy-MM-dd") a tapped cell hands to the day-detail action.
-private val TARGET_DAY = ActionParameters.Key<String>("target_day")
 
 class MonthWidget : GlanceAppWidget() {
 
@@ -57,16 +51,14 @@ class MonthWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Single
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val t0 = SystemClock.elapsedRealtime()
         val token = TokenStore.get(context)
         val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
         val displayed = YearMonth.parse(TokenStore.getDisplayedMonth(context))
         val ym = "%04d-%02d".format(displayed.year, displayed.monthValue)
         // Render from the local cache so taps never wait on the network. The only
         // blocking fetch is the very first time a month is seen (no cache yet);
-        // afterwards the tap actions refresh the cache in the background.
+        // RefreshWorker refreshes the cache in the background on a schedule.
         var resp = TokenStore.getMonthCache(context, ym)
-        val cacheHit = resp != null
         if (resp == null && token != null) {
             resp = runCatching { withTimeoutOrNull(8000) { ApiClient.month(token, ym) } }.getOrNull()
             if (resp != null) TokenStore.putMonthCache(context, ym, resp)
@@ -78,74 +70,34 @@ class MonthWidget : GlanceAppWidget() {
             byDay.getOrPut(TimeFmt.yyyymmdd(ev.start_time)) { mutableListOf() }.add(ev)
         }
 
-        // A selected day is only meaningful while it belongs to the month we just
-        // fetched (cells are only tappable within the displayed month).
-        val selectedDay = TokenStore.getSelectedDay(context)?.takeIf { it.startsWith(ym) }
-        Log.d(TAG, "provideGlance id=$id ym=$ym cacheHit=$cacheHit selectedDay=$selectedDay dataMs=${SystemClock.elapsedRealtime() - t0}")
-
         provideContent {
             GlanceTheme {
-                when {
-                    token == null -> NotConfigured()
-                    selectedDay != null -> DayBody(selectedDay, byDay[selectedDay].orEmpty())
-                    else -> MonthBody(today, displayed, holidays, daysWith, byDay)
-                }
+                if (token == null) NotConfigured()
+                else MonthBody(today, displayed, holidays, daysWith, byDay)
             }
         }
     }
 }
 
-// NOTE: every tap action does exactly ONE thing — mutate the stored view state
-// and call update() once. update() re-renders from the local cache (no network),
-// so the view switches as fast as the launcher can apply it. Network fetching is
-// kept entirely off the tap path: it happens in provideGlance only on a cold
-// cache (first view of a month) and in RefreshWorker on a schedule. Doing a
-// background re-fetch + a second update() inside the action made taps slow and
-// let an in-flight fetch from one tap queue ahead of the next tap.
+// Month navigation stays in-widget (there's no sensible web equivalent for the
+// chevrons). Each action mutates the stored month and re-renders from cache; day
+// and event detail are opened on the web instead of switching views in-widget,
+// which avoids the slow/unreliable in-widget update round-trip on this device.
 
 /** Tap on < or > — pin the displayed month to the target passed in the action. */
 class GoMonthAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val target = parameters[TARGET_MONTH] ?: return
-        val t = SystemClock.elapsedRealtime()
-        Log.d(TAG, "GoMonthAction fired target=$target")
         TokenStore.setDisplayedMonth(context, target)
         MonthWidget().updateAll(context)
-        Log.d(TAG, "GoMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
 /** Tap on the "오늘" chip — reset back to the current month. */
 class ResetMonthAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val t = SystemClock.elapsedRealtime()
-        Log.d(TAG, "ResetMonthAction fired")
         TokenStore.resetDisplayedMonth(context)
         MonthWidget().updateAll(context)
-        Log.d(TAG, "ResetMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
-    }
-}
-
-/** Tap a day cell — show that day's event list inside the widget (cached data). */
-class OpenDayAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val day = parameters[TARGET_DAY] ?: return
-        val t = SystemClock.elapsedRealtime()
-        Log.d(TAG, "OpenDayAction fired day=$day")
-        TokenStore.setSelectedDay(context, day)
-        MonthWidget().updateAll(context)
-        Log.d(TAG, "OpenDayAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
-    }
-}
-
-/** Tap the back chip in the day view — return to the month grid. */
-class BackToMonthAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val t = SystemClock.elapsedRealtime()
-        Log.d(TAG, "BackToMonthAction fired")
-        TokenStore.clearSelectedDay(context)
-        MonthWidget().updateAll(context)
-        Log.d(TAG, "BackToMonthAction updateAll done ${SystemClock.elapsedRealtime() - t}ms")
     }
 }
 
@@ -283,11 +235,9 @@ private fun MonthBody(
                         .padding(1.dp)
                         .cornerRadius(6.dp)
                         .background(if (isToday) WidgetTheme.accent else WidgetTheme.bg)
-                    // Tapping an in-month day shows that day's event list inside
-                    // the widget (no jump out to the web app).
-                    if (inMonth) cellMod = cellMod.clickable(
-                        actionRunCallback<OpenDayAction>(actionParametersOf(TARGET_DAY to ymd))
-                    )
+                    // Tapping an in-month day opens that day's page on the web —
+                    // the OS launches it instantly, vs the slow in-widget update.
+                    if (inMonth) cellMod = cellMod.clickable(openDay(ymd))
 
                     Box(modifier = cellMod) {
                         if (inMonth) {
@@ -319,84 +269,6 @@ private fun MonthBody(
                         }
                     }
                     cellIndex++
-                }
-            }
-        }
-    }
-}
-
-/** In-widget detail view for a single day: a back chip + the day's event list. */
-@androidx.compose.runtime.Composable
-private fun DayBody(day: String, events: List<MonthEvent>) {
-    val date = runCatching { LocalDate.parse(day) }.getOrNull()
-    val dow = date?.let { listOf("월", "화", "수", "목", "금", "토", "일")[it.dayOfWeek.value - 1] }
-    val title = if (date != null) "${date.monthValue}월 ${date.dayOfMonth}일 ($dow)" else day
-
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(WidgetTheme.bg)
-            .cornerRadius(20.dp)
-            .padding(10.dp)
-    ) {
-        // Header: [‹ 달력]   title
-        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = GlanceModifier
-                    .height(36.dp)
-                    .cornerRadius(18.dp)
-                    .background(WidgetTheme.surface2)
-                    .padding(horizontal = 12.dp)
-                    .clickable(actionRunCallback<BackToMonthAction>()),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("‹ 달력", style = TextStyle(color = WidgetTheme.fg, fontSize = 12.sp, fontWeight = FontWeight.Medium))
-            }
-            Spacer(GlanceModifier.width(10.dp))
-            Text(title, style = TextStyle(color = WidgetTheme.fg, fontSize = 14.sp, fontWeight = FontWeight.Bold))
-        }
-        Spacer(GlanceModifier.height(8.dp))
-
-        if (events.isEmpty()) {
-            Text("일정이 없습니다.", style = TextStyle(color = WidgetTheme.muted, fontSize = 13.sp))
-        } else {
-            // A plain Column, NOT LazyColumn: a Glance LazyColumn builds a
-            // RemoteViews collection whose click template swallowed taps on the
-            // sibling "‹ 달력" back chip (so back appeared dead). But a Glance
-            // Column/Row allows at most 10 children, and exceeding that makes the
-            // whole render throw (the day tap then looked unresponsive). Cap at 9
-            // rows + an optional overflow line = 10 children max.
-            val shown = events.take(9)
-            Column(modifier = GlanceModifier.fillMaxSize()) {
-                shown.forEach { e ->
-                    // Tapping a row opens its web detail (when the id is known).
-                    var rowMod = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).cornerRadius(8.dp)
-                    val id = e.id
-                    if (id != null) rowMod = rowMod.clickable(openEvent(id))
-                    Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (e.all_day) "종일" else TimeFmt.short(e.start_time),
-                            style = TextStyle(color = WidgetTheme.blue, fontSize = 12.sp),
-                            modifier = GlanceModifier.width(48.dp)
-                        )
-                        Spacer(GlanceModifier.width(8.dp))
-                        Text(
-                            e.title,
-                            maxLines = 2,
-                            style = TextStyle(color = WidgetTheme.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-                            modifier = GlanceModifier.defaultWeight()
-                        )
-                        if (id != null) {
-                            Text("›", style = TextStyle(color = WidgetTheme.muted, fontSize = 16.sp))
-                        }
-                    }
-                }
-                if (events.size > shown.size) {
-                    Text(
-                        "+${events.size - shown.size}개 더",
-                        style = TextStyle(color = WidgetTheme.muted, fontSize = 11.sp),
-                        modifier = GlanceModifier.padding(top = 4.dp)
-                    )
                 }
             }
         }

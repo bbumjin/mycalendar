@@ -30,11 +30,8 @@ fun openCalendar(): Action = customTab("/calendar")
 /** The + button opens quick-add. */
 fun openQuickAdd(): Action = customTab("/quick-add")
 
-/** Tapping a day cell opens that day's event list. */
+/** Tapping a day cell opens that day's page on the web. */
 fun openDay(date: String): Action = customTab("/day/$date")
-
-/** Tapping an event row in the in-widget day view opens its web detail. */
-fun openEvent(id: String): Action = customTab("/event/$id")
 
 /** Not-configured state opens the in-app token setup screen. */
 @Composable
