@@ -27,6 +27,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Transparent trampoline: opens web in a Custom Tab and refreshes
+             widgets when the user returns. -->
+        <activity
+            android:name=".WebOpenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Today widget (4x2) -->
         <receiver
             android:name=".widgets.TodayWidgetReceiver"

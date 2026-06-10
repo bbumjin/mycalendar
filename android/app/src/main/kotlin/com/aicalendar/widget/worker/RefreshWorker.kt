@@ -5,7 +5,10 @@ import androidx.glance.appwidget.updateAll
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -54,6 +57,19 @@ object RefreshScheduler {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             UNIQUE,
             ExistingPeriodicWorkPolicy.KEEP,
+            req
+        )
+    }
+
+    // Fire a single refresh ASAP — used when the user returns from editing on the
+    // web, so changes appear without waiting for the next periodic run.
+    fun refreshNow(context: Context) {
+        val req = OneTimeWorkRequestBuilder<RefreshWorker>()
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "$UNIQUE-now",
+            ExistingWorkPolicy.REPLACE,
             req
         )
     }
