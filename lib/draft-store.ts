@@ -4,11 +4,15 @@ import type { Extraction } from '@/lib/types';
 
 const KEY = 'aical:draft';
 
-export type Draft = {
+export type DraftEvent = {
   extraction: Extraction;
+  warning?: string;
+};
+
+export type Draft = {
+  events: DraftEvent[];
   source_text: string;
   source_type: 'text' | 'voice';
-  warning?: string;
 };
 
 export function saveDraft(d: Draft) {

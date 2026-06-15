@@ -16,6 +16,13 @@ export const ExtractionSchema = z.object({
 });
 export type Extraction = z.infer<typeof ExtractionSchema>;
 
+// One natural-language message may describe multiple events (e.g. same day, different
+// times). The LLM returns them all under `events`.
+export const MultiExtractionSchema = z.object({
+  events: z.array(ExtractionSchema),
+});
+export type MultiExtraction = z.infer<typeof MultiExtractionSchema>;
+
 export type Reminder = { id?: string; minutes_before: number; method?: 'notification' | 'email' };
 
 export type EventRow = {

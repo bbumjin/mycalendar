@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell, PageTitle } from '@/components/AppShell';
 import { QuickAddInput } from '@/components/QuickAddInput';
 import { saveDraft } from '@/lib/draft-store';
+import type { Extraction } from '@/lib/types';
 import { DEFAULT_TZ } from '@/lib/time';
 
 export default function QuickAddPage() {
@@ -41,11 +42,14 @@ function QuickAddInner() {
     if (!res.ok) {
       throw new Error(json.error || '일정 추출에 실패했습니다.');
     }
+    const events = (json.events ?? []) as { event: Extraction; warning?: string }[];
+    if (events.length === 0) {
+      throw new Error('일정을 찾지 못했습니다. 날짜와 시간을 포함해 다시 입력해주세요.');
+    }
     saveDraft({
-      extraction: json.event,
+      events: events.map((e) => ({ extraction: e.event, warning: e.warning })),
       source_text: text,
       source_type: source,
-      warning: json.warning,
     });
     router.push('/confirm');
   }
@@ -62,7 +66,7 @@ function QuickAddInner() {
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">예시</p>
           <Example text="다음 주 화요일 오후 3시, 강남역 스타벅스에서 David와 미팅" />
           <Example text="내일 오후 2시에 분당서울대병원 진료 예약" />
-          <Example text="금요일 저녁 7시 판교에서 민수랑 저녁" />
+          <Example text="6월 25일 10시 제이에스 미팅, 14시 내부 미팅" />
         </div>
       )}
     </AppShell>
