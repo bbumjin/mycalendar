@@ -4,7 +4,7 @@ import { getKoreanHolidays } from '@/lib/holidays';
 import { addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
-export type GridEvent = { id: string; title: string; start_time: string; end_time: string };
+export type GridEvent = { id: string; title: string; start_time: string; end_time: string; all_day?: boolean };
 export type MonthGrid = {
   month: string; // "yyyy-MM"
   events: GridEvent[];
@@ -32,7 +32,7 @@ export async function getMonthGrid(
   const [{ data }, holidaysAll] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, start_time, end_time')
+      .select('id, title, start_time, end_time, all_day')
       .eq('user_id', userId)
       .gte('start_time', gridStart.toISOString())
       .lte('start_time', addDays(gridEnd, 1).toISOString())

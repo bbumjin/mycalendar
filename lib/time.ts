@@ -51,6 +51,20 @@ export function localInputValue(iso: string, tz = DEFAULT_TZ) {
   return formatInTimeZone(parseISO(iso), tz, "yyyy-MM-dd'T'HH:mm");
 }
 
+// YYYY-MM-DD of an instant in the given tz (the calendar day it falls on locally).
+export function ymdInTz(iso: string, tz = DEFAULT_TZ) {
+  return formatInTimeZone(parseISO(iso), tz, 'yyyy-MM-dd');
+}
+
+// Build start/end timestamps for an all-day event spanning [startYmd, endYmd] inclusive,
+// anchored to local midnight..23:59 so it occupies the whole day in tz.
+export function allDayRangeIso(startYmd: string, endYmd: string, tz = DEFAULT_TZ) {
+  return {
+    start: inputValueToIso(`${startYmd}T00:00`, tz),
+    end: inputValueToIso(`${endYmd}T23:59`, tz),
+  };
+}
+
 export function inputValueToIso(local: string, tz = DEFAULT_TZ) {
   const [datePart, timePart] = local.split('T');
   const [y, mo, d] = datePart.split('-').map(Number);

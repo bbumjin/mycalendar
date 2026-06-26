@@ -25,6 +25,7 @@ type PatchBody = {
   title?: string;
   start_time?: string;
   end_time?: string;
+  all_day?: boolean;
   location_text?: string | null;
   attendees?: string[];
   notes?: string | null;
@@ -81,6 +82,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         title: data.title,
         start_time: data.start_time,
         end_time: data.end_time,
+        all_day: !!data.all_day,
         location_text: data.location_text,
         notes: data.notes,
         attendees: data.attendees ?? [],

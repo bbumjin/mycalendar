@@ -16,6 +16,7 @@ export function EventEditor({ event }: { event: EventRow }) {
 
   // Initialized from server-fetched data — no client fetch-on-mount.
   const [title, setTitle] = useState(event.title);
+  const [allDay, setAllDayState] = useState(!!event.all_day);
   const [startLocal, setStartLocal] = useState(localInputValue(event.start_time));
   const [endLocal, setEndLocal] = useState(localInputValue(event.end_time));
   const [location, setLocation] = useState(event.location_text || '');
@@ -24,6 +25,32 @@ export function EventEditor({ event }: { event: EventRow }) {
   const [reminders, setReminders] = useState<{ minutes_before: number }[]>(
     (event.reminders || []).map((r) => ({ minutes_before: r.minutes_before })),
   );
+
+  function setAllDay(on: boolean) {
+    const sd = startLocal.slice(0, 10);
+    if (on) {
+      const ed = endLocal.slice(0, 10);
+      const endDate = ed < sd ? sd : ed;
+      setStartLocal(`${sd}T00:00`);
+      setEndLocal(`${endDate}T23:59`);
+    } else {
+      setStartLocal(`${sd}T09:00`);
+      setEndLocal(`${sd}T10:00`);
+    }
+    setAllDayState(on);
+  }
+
+  function changeAllDayDate(which: 'start' | 'end', date: string) {
+    if (!date) return;
+    if (which === 'start') {
+      const ed = endLocal.slice(0, 10);
+      const endDate = ed < date ? date : ed;
+      setStartLocal(`${date}T00:00`);
+      setEndLocal(`${endDate}T23:59`);
+    } else {
+      setEndLocal(`${date}T23:59`);
+    }
+  }
 
   // When start changes, shift end by the same delta to preserve duration.
   function changeStart(v: string) {
@@ -53,6 +80,7 @@ export function EventEditor({ event }: { event: EventRow }) {
           title,
           start_time: inputValueToIso(startLocal, DEFAULT_TZ),
           end_time: inputValueToIso(endLocal, DEFAULT_TZ),
+          all_day: allDay,
           location_text: location || null,
           attendees,
           notes: notes || null,
@@ -88,14 +116,34 @@ export function EventEditor({ event }: { event: EventRow }) {
         <Field label="제목">
           <input className="input text-lg font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="시작">
-            <input type="datetime-local" className="input" value={startLocal} onChange={(e) => changeStart(e.target.value)} />
-          </Field>
-          <Field label="종료">
-            <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
-          </Field>
-        </div>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[var(--accent)]"
+            checked={allDay}
+            onChange={(e) => setAllDay(e.target.checked)}
+          />
+          종일 (하루 종일)
+        </label>
+        {allDay ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="시작일">
+              <input type="date" className="input" value={startLocal.slice(0, 10)} onChange={(e) => changeAllDayDate('start', e.target.value)} />
+            </Field>
+            <Field label="종료일">
+              <input type="date" className="input" value={endLocal.slice(0, 10)} min={startLocal.slice(0, 10)} onChange={(e) => changeAllDayDate('end', e.target.value)} />
+            </Field>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="시작">
+              <input type="datetime-local" className="input" value={startLocal} onChange={(e) => changeStart(e.target.value)} />
+            </Field>
+            <Field label="종료">
+              <input type="datetime-local" className="input" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} />
+            </Field>
+          </div>
+        )}
         <Field label="장소">
           <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="선택 사항" />
         </Field>

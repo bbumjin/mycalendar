@@ -14,7 +14,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   // fetch-on-mount round trip or "불러오는 중…" spinner.
   const { data } = await supabase
     .from('events_with_reminders')
-    .select('id, title, start_time, end_time, location_text, attendees, notes, reminders, source_provider, status')
+    .select('id, title, start_time, end_time, all_day, location_text, attendees, notes, reminders, source_provider, status')
     .eq('id', id)
     .eq('user_id', user.id)
     .single();

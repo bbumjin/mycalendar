@@ -13,8 +13,14 @@ export function EventCard({ event, showDate = false }: { event: EventRow; showDa
     >
       <div className="text-right w-20 shrink-0">
         {showDate && <div className="text-xs text-[var(--muted)]">{fmtDayMonth(event.start_time)}</div>}
-        <div className={`font-medium tabular-nums ${past ? 'line-through' : ''}`}>{fmtTime(event.start_time)}</div>
-        <div className="text-xs text-[var(--muted)] tabular-nums">{fmtTime(event.end_time)}</div>
+        {event.all_day ? (
+          <div className={`font-medium ${past ? 'line-through' : ''}`}>종일</div>
+        ) : (
+          <>
+            <div className={`font-medium tabular-nums ${past ? 'line-through' : ''}`}>{fmtTime(event.start_time)}</div>
+            <div className="text-xs text-[var(--muted)] tabular-nums">{fmtTime(event.end_time)}</div>
+          </>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate flex items-center gap-2">

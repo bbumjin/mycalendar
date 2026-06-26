@@ -138,7 +138,7 @@ export function CalendarView({ initialMonth, initialData }: { initialMonth: stri
                       } ${past ? 'line-through opacity-60' : ''}`}
                     >
                       <span className={isToday ? 'text-[var(--bg)]/70 tabular-nums' : 'text-blue-500/80 dark:text-blue-300/80 tabular-nums'}>
-                        {fmtTime(e.start_time)}
+                        {e.all_day ? '종일' : fmtTime(e.start_time)}
                       </span>{' '}
                       {e.title}
                     </div>

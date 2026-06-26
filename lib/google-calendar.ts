@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { addDays, parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+import { DEFAULT_TZ } from './time';
 
 type AccountRow = {
   id: string;
@@ -14,6 +17,7 @@ type EventPayload = {
   title: string;
   start_time: string;
   end_time: string;
+  all_day: boolean;
   location_text: string | null;
   notes: string | null;
   attendees: string[];
@@ -82,12 +86,19 @@ function eventBody(e: EventPayload) {
         ? { email: a }
         : { displayName: a, email: `${a.replace(/\s+/g, '_').toLowerCase()}@noreply.invalid`, responseStatus: 'needsAction' as const }
     );
+  // Google all-day events use date-only fields; end.date is EXCLUSIVE (the day after the last day).
+  const start = e.all_day
+    ? { date: formatInTimeZone(parseISO(e.start_time), DEFAULT_TZ, 'yyyy-MM-dd') }
+    : { dateTime: e.start_time };
+  const end = e.all_day
+    ? { date: formatInTimeZone(addDays(parseISO(e.end_time), 1), DEFAULT_TZ, 'yyyy-MM-dd') }
+    : { dateTime: e.end_time };
   return {
     summary: e.title,
     location: e.location_text || undefined,
     description: e.notes || undefined,
-    start: { dateTime: e.start_time },
-    end: { dateTime: e.end_time },
+    start,
+    end,
     attendees: attendees.length > 0 ? attendees : undefined,
     reminders: {
       useDefault: false,

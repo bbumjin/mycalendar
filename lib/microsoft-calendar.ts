@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { addDays, parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+import { DEFAULT_TZ } from './time';
 
 type AccountRow = {
   id: string;
@@ -14,6 +17,7 @@ type EventPayload = {
   title: string;
   start_time: string;
   end_time: string;
+  all_day: boolean;
   location_text: string | null;
   notes: string | null;
   attendees: string[];
@@ -98,11 +102,19 @@ function buildEventJson(e: EventPayload) {
   // We take the largest (earliest) reminder so the user gets the heads-up; subsequent
   // reminders are dropped on the MS side but kept locally.
   const reminderMinutes = e.reminders.reduce((m, r) => Math.max(m, r.minutes_before), 0);
+  // MS Graph all-day events require isAllDay + midnight start/end in a named zone; end is EXCLUSIVE.
+  const start = e.all_day
+    ? { dateTime: `${formatInTimeZone(parseISO(e.start_time), DEFAULT_TZ, 'yyyy-MM-dd')}T00:00:00`, timeZone: DEFAULT_TZ }
+    : { dateTime: e.start_time, timeZone: 'UTC' };
+  const end = e.all_day
+    ? { dateTime: `${formatInTimeZone(addDays(parseISO(e.end_time), 1), DEFAULT_TZ, 'yyyy-MM-dd')}T00:00:00`, timeZone: DEFAULT_TZ }
+    : { dateTime: e.end_time, timeZone: 'UTC' };
   return {
     subject: e.title,
     body: { contentType: 'text', content: e.notes ?? '' },
-    start: { dateTime: e.start_time, timeZone: 'UTC' },
-    end: { dateTime: e.end_time, timeZone: 'UTC' },
+    isAllDay: e.all_day,
+    start,
+    end,
     location: e.location_text ? { displayName: e.location_text } : undefined,
     attendees: attendees.length > 0 ? attendees : undefined,
     isReminderOn: reminderMinutes > 0,

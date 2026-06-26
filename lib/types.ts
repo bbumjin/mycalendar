@@ -6,6 +6,7 @@ import { z } from 'zod';
 export const ExtractionSchema = z.object({
   is_calendar_event: z.boolean(),
   title: z.string(),
+  all_day: z.boolean(),
   start_datetime: z.string(),
   end_datetime: z.string(),
   location_text: z.string().nullable(),

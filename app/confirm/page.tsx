@@ -20,6 +20,7 @@ type Account = {
 // the user types; only valid emails are kept when saving.
 type EventForm = {
   title: string;
+  allDay: boolean;
   startLocal: string;
   endLocal: string;
   location: string;
@@ -55,6 +56,7 @@ export default function ConfirmPage() {
         const hasLoc = !!(extraction.location_text && extraction.location_text.trim().length > 0);
         return {
           title: extraction.title,
+          allDay: !!extraction.all_day,
           startLocal: localInputValue(extraction.start_datetime),
           endLocal: localInputValue(extraction.end_datetime),
           location: extraction.location_text || '',
@@ -105,6 +107,32 @@ export default function ConfirmPage() {
     setForms((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Toggle all-day: snap to whole-day bounds, or restore a default 1h window.
+  function setAllDay(index: number, on: boolean) {
+    const f = forms[index];
+    const sd = f.startLocal.slice(0, 10);
+    if (on) {
+      const ed = f.endLocal.slice(0, 10);
+      const endDate = ed < sd ? sd : ed;
+      update(index, { allDay: true, startLocal: `${sd}T00:00`, endLocal: `${endDate}T23:59` });
+    } else {
+      update(index, { allDay: false, startLocal: `${sd}T09:00`, endLocal: `${sd}T10:00` });
+    }
+  }
+
+  // All-day date pickers (date-only). Keep end on/after start.
+  function changeAllDayDate(index: number, which: 'start' | 'end', date: string) {
+    if (!date) return;
+    const f = forms[index];
+    if (which === 'start') {
+      const ed = f.endLocal.slice(0, 10);
+      const endDate = ed < date ? date : ed;
+      update(index, { startLocal: `${date}T00:00`, endLocal: `${endDate}T23:59` });
+    } else {
+      update(index, { endLocal: `${date}T23:59` });
+    }
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -123,6 +151,7 @@ export default function ConfirmPage() {
             title: f.title,
             start_time,
             end_time,
+            all_day: f.allDay,
             location_text: f.location || null,
             attendees,
             source_type: draft!.source_type,
@@ -180,24 +209,55 @@ export default function ConfirmPage() {
                 autoFocus={i === 0}
               />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="시작">
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={f.startLocal}
-                  onChange={(e) => changeStart(i, e.target.value)}
-                />
-              </Field>
-              <Field label="종료">
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={f.endLocal}
-                  onChange={(e) => update(i, { endLocal: e.target.value })}
-                />
-              </Field>
-            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--accent)]"
+                checked={f.allDay}
+                onChange={(e) => setAllDay(i, e.target.checked)}
+              />
+              종일 (하루 종일)
+            </label>
+            {f.allDay ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="시작일">
+                  <input
+                    type="date"
+                    className="input"
+                    value={f.startLocal.slice(0, 10)}
+                    onChange={(e) => changeAllDayDate(i, 'start', e.target.value)}
+                  />
+                </Field>
+                <Field label="종료일">
+                  <input
+                    type="date"
+                    className="input"
+                    value={f.endLocal.slice(0, 10)}
+                    min={f.startLocal.slice(0, 10)}
+                    onChange={(e) => changeAllDayDate(i, 'end', e.target.value)}
+                  />
+                </Field>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="시작">
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={f.startLocal}
+                    onChange={(e) => changeStart(i, e.target.value)}
+                  />
+                </Field>
+                <Field label="종료">
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={f.endLocal}
+                    onChange={(e) => update(i, { endLocal: e.target.value })}
+                  />
+                </Field>
+              </div>
+            )}
             <Field label="장소">
               <input
                 className="input"

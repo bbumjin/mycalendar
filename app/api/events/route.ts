@@ -30,6 +30,7 @@ type CreateBody = {
   title: string;
   start_time: string;
   end_time: string;
+  all_day?: boolean;
   location_text?: string | null;
   attendees?: string[];
   notes?: string | null;
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
     title: body.title,
     start_time: body.start_time,
     end_time: body.end_time,
+    all_day: body.all_day ?? false,
     location_text: body.location_text ?? null,
     attendees: body.attendees ?? [],
     notes: body.notes ?? null,
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
         title: full.title,
         start_time: full.start_time,
         end_time: full.end_time,
+        all_day: !!full.all_day,
         location_text: full.location_text,
         notes: full.notes,
         attendees: full.attendees ?? [],
